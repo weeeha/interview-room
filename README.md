@@ -1,5 +1,13 @@
 # interview-room
 
+**Problem.** Rehearsing an interview alone has no one to follow up on what you actually said and no sense of being in a room.
+
+**Idea.** A voice interviewer asks questions from your own bank inside a room generated once with World Labs Marble, follows up on what you said, and writes feedback after the session. The voice loop comes first and the room second, because the questions and the feedback carry the value.
+
+**Built.** Spec only so far: a design spec and an implementation plan for phases 0 to 5, and no code. 3 commits on 2 days, Oct 27 to Oct 30, 2026.
+
+**Decision.** Feedback arrives after the session, with no coaching during the interview. The interviewer never grades live, which keeps the conversation natural and lets the feedback pass read the whole transcript.
+
 Status: exploration. Live URL: none. Started 2026-10-27.
 
 **TL;DR.** Rehearse a job interview inside a generated room. A voice interviewer asks questions from your own question bank, follows up on what you said, and writes feedback after the session. The room is a 3D scene made once with World Labs Marble and viewed in the browser. The voice loop is built first and the room second, because the questions and the feedback carry the value.
