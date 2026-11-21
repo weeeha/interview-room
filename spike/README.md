@@ -17,10 +17,12 @@ Query values:
 - `?scale=<number>` optional metric scale factor, default 1.
 - `?ground=<number>` optional ground plane offset, subtracted from Y after the flip, default 0.
 
+- `?offset=x,y,z` test only, shifts the splat (for small sample objects that are not rooms).
+
 If the splat file is missing the page shows "No room file at <path>".
 
 Sample splat for testing without a Marble file (loaded by URL, not stored here):
-`?splat=https://sparkjs.dev/assets/splats/butterfly.spz&flip=0`
+`?splat=https://sparkjs.dev/assets/splats/butterfly.spz&flip=0&offset=0,1.2,-2`
 
 ## Where exported files go
 
