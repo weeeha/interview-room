@@ -10,7 +10,9 @@
     "typecheck": "tsc --noEmit",
     "lint": "eslint .",
     "test": "vitest run",
-    "build": "vite build"
+    "build": "vite build",
+    "services": "bash scripts/start-services.sh",
+    "services:stop": "bash scripts/stop-services.sh"
   },
   "dependencies": {
     "@hono/node-server": "2.1.11",
