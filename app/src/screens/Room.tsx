@@ -1,3 +1,4 @@
+import { sessionStartOnPerfClock } from "../session/clock.ts";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Link, useNavigate, useParams, useSearchParams } from "react-router-dom";
 import type { Room as RoomRecord } from "../../../shared/types";
@@ -374,8 +375,8 @@ export function Room() {
       ctxRef.current = ctx;
       const playback = createPlayback({ audioContext: ctx });
       playbackRef.current = playback;
-      // Resumed sessions keep the clock of the server log, so ms values stay comparable.
-      const startMs = resume ? performance.now() - (Date.now() - Date.parse(session.startedAt)) : performance.now();
+      // Time zero is the session's startedAt, the origin the server uses, so ms values stay comparable.
+      const startMs = sessionStartOnPerfClock(performance.now(), Date.now(), session.startedAt);
       startMsRef.current = startMs;
       kindRef.current = resume ? "silence_prompt" : "start";
       const loop = createLoop({

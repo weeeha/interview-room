@@ -232,12 +232,20 @@ export function createSessionService(opts: SessionServiceOptions) {
     const lat = ((turn.latency ??= {} as Turn["latency"] & object) as PartialLatency);
     if (prev.gapMs !== undefined) lat.gapMs = prev.gapMs;
     if (prev.ttsFirstAudioMs !== undefined) lat.ttsFirstAudioMs = prev.ttsFirstAudioMs;
+    // Stop and end times come from the browser, which counts from the session's startedAt. A turn
+    // never ends before it starts: if the report says so, keep startMs and warn.
+    const setEnd = (reported: number) => {
+      if (reported < turn.startMs) {
+        log.warn(`session ${session.id} turn ${turn.index}: reported end ${reported} ms is before start ${turn.startMs} ms, keeping the start`);
+        turn.endMs = turn.startMs;
+      } else turn.endMs = reported;
+    };
     if (prev.interrupted) {
       turn.interrupted = true;
-      if (prev.interruptStopMs !== undefined) turn.endMs = prev.interruptStopMs;
-      else if (prev.playbackEndMs !== undefined) turn.endMs = prev.playbackEndMs;
+      if (prev.interruptStopMs !== undefined) setEnd(prev.interruptStopMs);
+      else if (prev.playbackEndMs !== undefined) setEnd(prev.playbackEndMs);
     } else if (prev.playbackEndMs !== undefined) {
-      turn.endMs = prev.playbackEndMs;
+      setEnd(prev.playbackEndMs);
     }
     const lastInterviewer = [...session.turns].reverse().find((t) => t.role === "interviewer");
     if (prev.spokenText !== undefined) turn.text = prev.spokenText.trim();

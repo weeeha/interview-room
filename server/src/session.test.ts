@@ -282,6 +282,20 @@ describe("turn stream", () => {
     expect(user).not.toContain("Let's begin");
   });
 
+  it("keeps startMs when the browser reports a stop time before it", async () => {
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+    const { app, clock } = setup({ stt: createFakeSTT(["I introduced a shared board."]) });
+    const s = await create(app);
+    clock.t += 5000;
+    await turn(app, s.id, { kind: "start" });
+    await turn(app, s.id, { kind: "answer", speechStartMs: 9000, speechEndMs: 12000, prev: { turnIndex: 0, interrupted: true, interruptStopMs: 100, spokenText: "Hello." } }, true);
+    const t0 = (await getSession(app, s.id)).turns[0];
+    expect(t0?.startMs).toBe(5000);
+    expect(t0?.endMs).toBe(5000);
+    expect(warn).toHaveBeenCalled();
+    warn.mockRestore();
+  });
+
   it("prev without interruption sets gap and playback end", async () => {
     const { app } = setup();
     const s = await create(app);
