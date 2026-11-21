@@ -61,3 +61,53 @@ Claude column: `claude.ts` is written and tested against a stubbed fetch only. I
 - Timings (Mac under load average 9 to 18, so pessimistic). One 9-word sentence ("Tell me about a time you changed your mind", af_heart, 2.2 s of audio), through the local provider, warm server: 731, 611, 543 ms. First request on a cold server also loads the phonemizer, which the warm-up call absorbs. Fixed lines took 0.4 to 0.9 s each to render. A cache hit takes 2 ms. Kokoro renders a whole sentence before any audio comes back, so time to first audio equals render time for the first sentence. That is under the one-second bar, and the loop sends sentences one by one.
 - Playback (`app/src/audio/playback.ts`): sentences with a url are fetched and decoded when queued and played back to back through one GainNode. Sentences without a url are spoken with speechSynthesis: the voice list is awaited for up to 1.5 s (Safari fills it late), an English voice is chosen by name, and text over 160 characters is spoken in chunks (Chrome cuts long utterances). If a url fails to load, the sentence is spoken instead. `stop()` is synchronous. The voice level for speechSynthesis is a fake pulse because that output cannot be tapped.
 - Deferred to 2.6: the browser check that a 3-sentence reply starts playing before generation ends. Not tested in a real browser at all: the playback queue is tested only with fakes for AudioContext and speechSynthesis, so real Chrome and Safari behaviour (decodeAudioData, voices, autoplay unlock) is unverified.
+
+## Turn loop, server side
+
+Code: `server/src/session.ts` (store and turn pipeline), `server/src/routes/session.ts`, `server/src/routes/rooms.ts`, `server/src/network.ts`. Scripts: `scripts/latency-table.ts`, `scripts/scripted-session.ts`.
+
+- Storage: `sessions/<id>/session.json` is rewritten atomically (temp file, then rename) after every turn, with `engine.json` beside it (the engine's `state()`). After a restart the session and its engine are rebuilt from those two files. The engine clock keeps counting through the downtime, because it is wall time since `startedAt`. Candidate audio is `audio/turn-NN.wav`, interviewer sentences `audio/turn-NN-sK.wav`. `Turn.audioPath` is relative to the session folder.
+- One interviewer reply is one `Turn`. Its `kind` is the kind of the last sentence (an opening plus the first question is a `question` turn; a silence offer plus the next question is a `question` turn), and the sentence lines keep their own kinds. The candidate turn gets the index before it. So a start is turn 0, the first answer is turn 1, the reply is turn 2.
+- Latency lives on the interviewer turn: `sttMs` (of the answer just transcribed), `llmFirstTokenMs` (first token seen by a wrapper around the LLM provider; 0 for fixed lines and bank questions, which need no model), `ttsFirstAudioMs` (first sentence line written to first audio line written, replaced by the browser value when `prev.ttsFirstAudioMs` arrives) and `gapMs` (from `prev` of the next request, or of `/end`). Fields that were never measured are absent, not zero, so a browser TTS run shows "no gap data" instead of fake numbers.
+- Streaming: a `sentence` line is written the moment the engine yields it. Synthesis runs in the background, one sentence at a time and in order, and writes the `audio` line when ready. The first sentence's audio goes out before the LLM has finished (a test holds the LLM open and checks this).
+- Interruption: `prev.interrupted` marks that turn `interrupted`, sets its `endMs` to `prev.interruptStopMs` (read as ms since session start, the same clock as `speechStartMs`), replaces its text with `prev.spokenText` when given, and calls `engine.commit` so the model only sees what was spoken. The stop time for AC-7 is then the interrupted turn's `endMs` minus the next candidate turn's `startMs`; `latency-table.ts` prints it as `stopMs`.
+- Abort: if the client drops the request, the LLM stream is stopped through the AbortSignal and the sentences produced so far are saved as the interviewer turn and committed as interrupted. It is not an error.
+- Errors: any failure writes an `error` line (`stt`, `llm` or `tts`) and the request leaves no trace (turns and engine state are rolled back), so the client can send the same turn again. An STT failure happens before anything changes. The engine itself falls back to a bank hint or the next question when the LLM fails, so an `llm` error line only appears for unexpected faults.
+- Empty transcript: one `transcript` line with empty text and the stream ends. There is no `done` line and no interviewer turn.
+- Not in the contract, added: `GET /api/sessions`, `GET /api/config` (silence and end-of-speech settings for the browser), `GET /api/rooms`, `GET /media/rooms/*` (404 when the file is missing), `GET /api/session/:id/audio/:file`. Env: `SESSIONS_DIR`, `ROOMS_DIR`, `MEDIA_DIR`.
+- `rooms/interview-office.json` holds placeholder seat and anchor positions. They are unmeasured: no splat exists yet.
+- AC-16: `server/src/network.ts` lists the hosts the configured providers talk to, `main.ts` logs each once at startup, and a test checks that the default URLs are on 127.0.0.1.
+- Hook: `createApp(env, { onSessionEnded })` is called once when `/end` first ends a session. Default: nothing. `GET /api/session/:id` reports `reportStatus: "ready"` only when `report.json` exists, otherwise `"none"`.
+
+### Real scripted session (2026-11-21)
+
+`SERVER_URL=http://127.0.0.1:8951 TARGET_SEC=180 PACE_SEC=10 npx tsx scripts/scripted-session.ts` against the real services (Gemma 4 E4B on 8944, whisper large-v3-turbo on 8942, Kokoro on 8943), no microphone. Candidate answers are invented and spoken with `say`. The script waits 10 s before each answer so the engine clock reaches the closing time. Mac load average 6 to 9. The interrupted turn and its 180 ms stop time are simulated, because the script has no speaker. The silence prompt row is a fixed line from the cache.
+
+```
+turn kind        sttMs  llm1st  tts1st   gapMs  stopMs interrupted
+   0 question        -       0     917     917       -
+   2 followup      590     209    1836    1836       -
+   4 followup      470     382    1874    1874       -
+   5 prompt          -       0       8       8       -
+   7 question      407       0    1054    1054     180 yes
+   9 followup      415     411    1743    1743       -
+  11 followup      451     433    1971    1971       -
+  13 question      465       0    1049    1049       -
+  15 followup      404     613    2159    2159       -
+  17 followup      408     445    1805    1805       -
+  19 closing       385       0     838     838       -
+
+gapMs: n=11 median=1743 p95=2159
+sttMs: n=9 median=415
+llmFirstTokenMs: n=11 median=209
+ttsFirstAudioMs: n=11 median=1743
+```
+
+The gap here is time from sending the answer to the first audio line, so it leaves out network to a browser, decoding and the 1.2 s end-of-speech window. The first run (before the load dropped) had a median of 1996 ms and a p95 of 4220 ms.
+
+Reading the interviewer lines of both runs:
+- No question repeated. No question had more than 2 follow-ups. The closing line came after about 150 s on a 180 s target (the engine closes at the first turn boundary after target minus 60 s, which for a short target is well under 90 percent).
+- Every follow-up quoted something the scripted answer did say (seven customers, the heat map, the time picker, both orders on one page, the skeleton screen, the three biggest problems, skipping people who work with the team). No stated fact was missing from the transcript. One follow-up ("What was the process for selecting those seven customers?") assumes a selection process, which is a question and not a claim.
+- The scripted answers are in a fixed order and do not always match the question asked, which the interviewer does not notice. That is a limit of the script, not of the loop.
+- Whisper wrote digits for number words ("20 minutes"), harmless here.
+- Not checked: any real browser, real voice, Safari, and the stop time of real playback (AC-7).
