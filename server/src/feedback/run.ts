@@ -24,6 +24,21 @@ export function createFeedbackLLM(env: Record<string, string | undefined> = proc
   return createLLMProvider(env);
 }
 
+/** Runs `fn` over `items` with at most `limit` in flight and returns the results in the order of `items`. */
+export async function mapLimit<T, R>(items: T[], limit: number, fn: (item: T) => Promise<R>): Promise<R[]> {
+  const out: R[] = new Array(items.length);
+  let next = 0;
+  const worker = async () => {
+    for (;;) {
+      const i = next++;
+      if (i >= items.length) return;
+      out[i] = await fn(items[i] as T);
+    }
+  };
+  await Promise.all(Array.from({ length: Math.min(limit, items.length) }, worker));
+  return out;
+}
+
 export type FeedbackStage = "metrics" | "writing" | "verifying" | "retrying" | "done";
 type PerQuestion = FeedbackReport["perQuestion"][number];
 
@@ -74,6 +89,8 @@ export async function runFeedback(args: {
   bank: QuestionBank;
   llm: LLMProvider;
   onStage?: (stage: FeedbackStage) => void;
+  /** How many question calls may be in flight at once. Default 1. The model server needs that many slots. */
+  concurrency?: number;
 }): Promise<{ report: FeedbackReport; warnings: string[] }> {
   const { session, bank, llm } = args;
   const stage = args.onStage ?? (() => {});
@@ -116,8 +133,10 @@ export async function runFeedback(args: {
   }
 
   stage("writing");
-  const perQuestion: PerQuestion[] = [];
-  for (const g of groups) {
+  // One task per question. They run `concurrency` at a time; the results keep the order of the session,
+  // and so do the warnings, so the report does not depend on which reply came back first.
+  async function oneQuestion(g: Group): Promise<{ pq: PerQuestion; warnings: string[] }> {
+    const own: string[] = [];
     const entry = bank.questions.find((x) => x.id === g.questionId);
     const wantRewrite = entry?.hasReferenceAnswer === true;
     const system = fill(sections["question-system"]!, {
@@ -147,19 +166,22 @@ export async function runFeedback(args: {
     };
     const res = await ask(messages, (raw) => checkQuestionOutput(raw, { wantRewrite }), verify, describeFailures);
     if (!res.value) {
-      warnings.push(`Question ${g.questionId}: the model did not return usable feedback (${res.errors.join("; ")}). It is left empty.`);
-      perQuestion.push({ questionId: g.questionId, strengths: [], gaps: [], rubric: { structure: 1, specificity: 1, relevance: 1, concision: 1 } });
-      continue;
+      own.push(`Question ${g.questionId}: the model did not return usable feedback (${res.errors.join("; ")}). It is left empty.`);
+      return { pq: { questionId: g.questionId, strengths: [], gaps: [], rubric: { structure: 1, specificity: 1, relevance: 1, concision: 1 } }, warnings: own };
     }
     let pq = buildReport(res.value);
     if (res.failures.length > 0) {
       pq = markUnverified({ sessionId: session.id, summary: "", perQuestion: [pq], delivery, nextDrill: [] }, res.failures).perQuestion[0]!;
-      warnings.push(`Question ${g.questionId}: ${res.failures.length} quote(s) could not be found in the transcript and are marked unverified.`);
+      own.push(`Question ${g.questionId}: ${res.failures.length} quote(s) could not be found in the transcript and are marked unverified.`);
     }
     // rubric reasons are kept beside the scores for the report page
     (pq as PerQuestion & { rubricReasons?: Record<string, string> }).rubricReasons = Object.fromEntries(RUBRIC_KEYS.map((k) => [k, res.value!.reasons[k]]));
-    perQuestion.push(pq);
+    return { pq, warnings: own };
   }
+
+  const results = await mapLimit(groups, Math.max(1, Math.floor(args.concurrency ?? 1)), oneQuestion);
+  const perQuestion: PerQuestion[] = results.map((r) => r.pq);
+  for (const r of results) warnings.push(...r.warnings);
 
   const notes = perQuestion
     .map((p) => {

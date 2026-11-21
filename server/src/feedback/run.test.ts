@@ -4,7 +4,7 @@ import type { FeedbackReport, QuestionBank, Session } from "../../../shared/type
 import { createFakeLLM } from "../providers/llm/fake.ts";
 import type { ChatMessage } from "../providers/llm/types.ts";
 import { computeDelivery } from "./metrics.ts";
-import { fill, loadSections, runFeedback } from "./run.ts";
+import { fill, loadSections, mapLimit, runFeedback } from "./run.ts";
 import { repairTurnIndexes, verifyQuotes } from "./verifyQuotes.ts";
 
 const session = JSON.parse(readFileSync(new URL("../../../fixtures/transcripts/two-minute.json", import.meta.url), "utf8")) as Session;
@@ -67,6 +67,72 @@ describe("runFeedback", () => {
     expect(stages[0]).toBe("metrics");
     expect(stages.at(-1)).toBe("done");
     expect(stages).not.toContain("retrying");
+  });
+
+  it("test_feedback_questions_run_concurrently_and_keep_session_order", async () => {
+    let inFlight = 0;
+    let peak = 0;
+    const inner = responder();
+    const delays: Record<string, number> = { "q-migration": 30, "q-strength": 5, "q-growth": 15 };
+    const llm = {
+      name: "fake",
+      async *stream(messages: ChatMessage[]) {
+        const sys = messages[0]!.content;
+        inFlight++;
+        peak = Math.max(peak, inFlight);
+        const user = messages[1]!.content;
+        const id = Object.keys(delays).find((k) => user.includes(bank.questions.find((x) => x.id === k)!.text));
+        await new Promise((r) => setTimeout(r, sys.includes("overall summary") ? 1 : (delays[id ?? ""] ?? 1)));
+        inFlight--;
+        yield inner(messages);
+      },
+    };
+    const { report, warnings } = await runFeedback({ session, bank, llm, concurrency: 3 });
+    expect(warnings).toEqual([]);
+    expect(peak).toBe(3);
+    expect(report.perQuestion.map((p) => p.questionId)).toEqual(["q-migration", "q-strength", "q-growth"]);
+    expect(report.summary).toContain("Solid");
+  });
+
+  it("test_feedback_default_is_one_call_at_a_time", async () => {
+    let inFlight = 0;
+    let peak = 0;
+    const inner = responder();
+    const llm = {
+      name: "fake",
+      async *stream(messages: ChatMessage[]) {
+        inFlight++;
+        peak = Math.max(peak, inFlight);
+        await new Promise((r) => setTimeout(r, 3));
+        inFlight--;
+        yield inner(messages);
+      },
+    };
+    await runFeedback({ session, bank, llm });
+    expect(peak).toBe(1);
+  });
+
+  it("test_feedback_concurrent_warnings_keep_session_order", async () => {
+    const llm = createFakeLLM([], responder({ alwaysBad: ["q-migration", "q-growth"] }));
+    const { warnings } = await runFeedback({ session, bank, llm, concurrency: 3 });
+    expect(warnings).toHaveLength(2);
+    expect(warnings[0]).toContain("q-migration");
+    expect(warnings[1]).toContain("q-growth");
+  });
+
+  it("test_map_limit_returns_results_in_input_order_and_respects_the_limit", async () => {
+    let inFlight = 0;
+    let peak = 0;
+    const out = await mapLimit([5, 1, 4, 2, 3], 2, async (n) => {
+      inFlight++;
+      peak = Math.max(peak, inFlight);
+      await new Promise((r) => setTimeout(r, n * 2));
+      inFlight--;
+      return n * 10;
+    });
+    expect(out).toEqual([50, 10, 40, 20, 30]);
+    expect(peak).toBe(2);
+    expect(await mapLimit([], 3, async (n: number) => n)).toEqual([]);
   });
 
   it("test_feedback_fabricated_quote_retries_once", async () => {

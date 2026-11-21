@@ -29,6 +29,13 @@ export type FeedbackServiceOptions = {
 
 const ID_RE = /^[a-z0-9]{6,32}$/;
 
+/** FEEDBACK_CONCURRENCY: question calls in flight at once. Needs that many slots in the model server. */
+export function feedbackConcurrency(env: Record<string, string | undefined>): number {
+  const n = Math.floor(Number(env.FEEDBACK_CONCURRENCY));
+  return Number.isFinite(n) && n >= 1 ? Math.min(n, 8) : DEFAULT_FEEDBACK_CONCURRENCY;
+}
+const DEFAULT_FEEDBACK_CONCURRENCY = 1;
+
 /**
  * Deterministic stand-in for the feedback model, used only when LLM_PROVIDER=fake.
  * It quotes the opening words of the first candidate turn of each question, so the real
@@ -115,6 +122,7 @@ export function createFeedbackService(opts: FeedbackServiceOptions) {
           session: withQuestionIds(session),
           bank,
           llm: makeLLM(),
+          concurrency: feedbackConcurrency(env),
           onStage: (stage) => states.set(id, { ...(states.get(id) as State), status: "generating", stage }),
         });
         // The question wording as the bank has it, kept beside each question for the report page.

@@ -7,7 +7,7 @@ import { createApp } from "../index.ts";
 import { createFakeLLM } from "../providers/llm/fake.ts";
 import { createFakeSTT } from "../providers/stt/fake.ts";
 import { createFakeTTS } from "../providers/tts/fake.ts";
-import { createFakeFeedbackLLM, createFeedbackService, withQuestionIds } from "./service.ts";
+import { createFakeFeedbackLLM, createFeedbackService, feedbackConcurrency, withQuestionIds } from "./service.ts";
 import { verifyQuotes } from "./verifyQuotes.ts";
 
 const fixture = JSON.parse(readFileSync(new URL("../../../fixtures/transcripts/two-minute.json", import.meta.url), "utf8")) as Session;
@@ -24,6 +24,17 @@ function setup(session: Session) {
   return dir;
 }
 const ended = (over: Partial<Session> = {}): Session => ({ ...structuredClone(fixture), id: "abc123def", status: "ended", ...over });
+
+describe("feedback concurrency setting", () => {
+  it("test_feedback_concurrency_setting", () => {
+    expect(feedbackConcurrency({})).toBeGreaterThanOrEqual(1);
+    expect(feedbackConcurrency({ FEEDBACK_CONCURRENCY: "3" })).toBe(3);
+    expect(feedbackConcurrency({ FEEDBACK_CONCURRENCY: "1" })).toBe(1);
+    expect(feedbackConcurrency({ FEEDBACK_CONCURRENCY: "99" })).toBe(8);
+    expect(feedbackConcurrency({ FEEDBACK_CONCURRENCY: "0" })).toBe(feedbackConcurrency({}));
+    expect(feedbackConcurrency({ FEEDBACK_CONCURRENCY: "abc" })).toBe(feedbackConcurrency({}));
+  });
+});
 
 describe("feedback service", () => {
   it("test_report_ready_after_session_ends", async () => {
