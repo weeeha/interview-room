@@ -142,7 +142,8 @@ export function parseBank(markdown: string, opts: { id: string; sourcePath: stri
       flush();
       const number = h[1]!.replace(".", "-");
       let text = h[2]!;
-      if (text.startsWith('"')) text = text.slice(1).replace(/"\s*$/, "");
+      // A quoted heading may list alternate wordings as "A" / "B": the first one is the question.
+      if (text.startsWith('"')) text = text.slice(1).split(/"\s*\/\s*"/)[0]!.replace(/"\s*$/, "");
       current = { number, text, body: [], tags: section ? [section] : [] };
       continue;
     }

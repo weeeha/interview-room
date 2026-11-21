@@ -101,4 +101,15 @@ describe("banks route", () => {
     // the heading that is not a question must not leak its body into the previous question
     expect(bank.questions[4]!.referenceAnswer).toBeUndefined();
   });
+
+  it("test_heading_with_alternate_wordings_keeps_the_first", () => {
+    const md = [
+      '### 1. "Where do you live?" / "So you are in the city?"',
+      "**Say:** Answer.",
+      '### 2.1 "Tell me about yourself." / "Walk me through your background." / "Who are you?"',
+    ].join("\n");
+    const bank = parseBank(md, { id: "b", sourcePath: "b.md" });
+    expect(bank.questions.map((q) => q.text)).toEqual(["Where do you live?", "Tell me about yourself."]);
+    expect(bank.questions.every((q) => !q.text.includes('"'))).toBe(true);
+  });
 });
