@@ -132,3 +132,19 @@ Reading the interviewer lines of both runs:
 - Capture path: AudioWorklet ran (1 worklet node, 0 ScriptProcessor).
 - Console errors: none from the app. Only a 404 for `/favicon.ico`.
 - Unverified: speechSynthesis (headless Chrome has 0 voices, the server voice was used so the fallback never ran); audible quality; echo with real speakers; the ScriptProcessor fallback; the 3-sentence "starts before generation ends" check by ear. Safari: not checked.
+
+## Scripted stand-in with a real bank, 2026-11-21
+
+This does not replace the owner's own session. It checks the bank reading and the interviewer lines against a real bank with synthesized, invented answers. The sign-off for tasks 2.7, 3.6 and 4.5 still needs the owner speaking.
+
+- Setup: a second server on port 8961 (the main one on 8941 was left alone), `QUESTION_BANK_DIR` pointing at a temporary folder with one symlink to the owner's bank file with the most parsed questions, the model env from `.env`, default `sessions/` folder. `scripts/scripted-session.ts` with `TARGET_SEC=300 PACE_SEC=18`, neutral profile. The server was stopped and the temporary folder deleted afterwards. Nothing from the bank file was copied or committed.
+- Parser over the owner's bank files: 122 files matched the heading grep, 105 of them hold numbered question headings. 2053 headings in total, 2053 parsed, 0 files with a mismatch.
+- Questions parsed from the chosen bank: 109.
+- Session: 9 candidate answers, closing line reached, status `ended`. 11 interviewer turns.
+- Questions asked: 4. Repeats: 0. Maximum follow-ups on one question: 2 (5 follow-ups in all).
+- Leaks into interviewer lines (directive, bold marker, emoji, the word Guard, text of a guard line): no, 0 of each in 11 turns.
+- Interviewer lines that state a fact not in the transcript or the question: 0 of 5 follow-ups (each quoted or paraphrased something the scripted answer said, or asked a question).
+- Feedback report: quote verification 14 of 14 (`scripts/verify-report.ts`), 0 marked unverified.
+- Found by reading the lines: 2 of the 4 questions asked were spoken with two alternate wordings run together and a stray quote mark between them (the heading lists `"A" / "B"`). 89 of 2053 headings in 15 of the files use that form. The parser now keeps the first wording (test `test_heading_with_alternate_wordings_keeps_the_first`). The session was not re-run after the fix, so the counts above are from the run before it.
+- Still open: 245 of the 2053 parsed question texts still contain a quote character (most are one mark inside the text, such as a note after the closing quote). Not changed, because the right reading of those headings is the owner's to confirm.
+- Limits: the scripted answers come in a fixed order and often do not fit the question asked, and the answer audio is macOS `say`. The interviewer's follow-ups were judged only against what the script said. The gap values in this run (median about 6.7 s) were measured under a load average of 12 to 19 and say nothing about the speed pass.
