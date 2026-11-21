@@ -105,6 +105,9 @@ export function Room() {
   const [bd, setBd] = useState<BackdropState>(BACKDROP_START);
   const [roomRec, setRoomRec] = useState<RoomRecord | null | undefined>(undefined);
   const [debugOn, setDebugOn] = useState(debugParam);
+  const [xrSupported, setXrSupported] = useState(false);
+  const [inVr, setInVr] = useState(false);
+  const [vrError, setVrError] = useState<string | null>(null);
   const [dbg, setDbg] = useState<{ fps: number; yaw: number } | null>(null);
 
   // What the screen shows. In dev, ?state= replaces the real values with a sample of that state.
@@ -243,6 +246,35 @@ export function Room() {
       voiceRef.current = null;
     }
   }, [spatial, roomRec]);
+
+  // Enter VR (task 5.2, not tested on a headset). The code loads only when the browser reports immersive VR.
+  useEffect(() => {
+    let cancelled = false;
+    import("../room/xr.ts").then(
+      (m) => m.isXrSupported().then((ok) => !cancelled && setXrSupported(ok)),
+      () => undefined,
+    );
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+  const vrButton = xrSupported && bd.mode === "room" && bd.ready && gate.kind === "live" && !micError && !forced;
+  const toggleVr = async () => {
+    const xr = await import("../room/xr.ts");
+    if (inVr) {
+      await xr.exitVr();
+      return;
+    }
+    const host = backdropRef.current?.view()?.xrHost?.();
+    if (!host) return;
+    setVrError(null);
+    try {
+      await xr.enterVr(host, { onEnd: () => setInVr(false) });
+      setInVr(true);
+    } catch (e) {
+      setVrError(e instanceof Error ? e.message : "The headset session did not start.");
+    }
+  };
 
   // Marker level and debug numbers. Runs only while the tab is visible and there is something to feed.
   useEffect(() => {
@@ -520,7 +552,12 @@ export function Room() {
               <button type="button" className="btn btn-primary" onClick={() => begin(gate.session, false)}>
                 Start
               </button>
-              <button type="button" className="btn" onClick={() => void endNow()}>
+              {vrButton && (
+              <button type="button" className="btn" data-enter-vr onClick={() => void toggleVr()}>
+                {inVr ? "Exit VR" : "Enter VR"}
+              </button>
+            )}
+            <button type="button" className="btn" onClick={() => void endNow()}>
                 End session
               </button>
             </div>
@@ -611,6 +648,11 @@ export function Room() {
             </button>
           </div>
         </div>
+        {vrError && (
+          <p className="note" role="status" data-vr-error>
+            Could not enter VR: {vrError}
+          </p>
+        )}
         <p className="note shortcuts">
           Keyboard: press M to mute or unmute, E to end the session, D for the debug panel
           {shown.mode === "room" && shown.ready ? ", the arrow keys to turn the view" : ""}. No feedback is shown during the interview.

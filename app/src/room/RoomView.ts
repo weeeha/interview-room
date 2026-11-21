@@ -8,6 +8,7 @@ import { createMarker, type Marker } from "./marker";
 import { SceneLoadError } from "./fetchSplat";
 import type { SceneOverrides } from "./sceneTransform";
 import { createFpsMeter, createSeatCamera, degToRad } from "./seatCamera";
+import { yawPitchFromForward, type RigPlacement, type XrHost } from "./xr";
 
 export type RoomViewOptions = {
   container: HTMLElement;
@@ -30,6 +31,8 @@ export type RoomView = {
   setMarkerLevel(level: number): void;
   /** Abort loading. The error callback receives a "stopped" error. */
   skip(): void;
+  /** What Enter VR needs (task 5.2). Null when the view did not start. */
+  xrHost?(): XrHost | null;
 };
 
 export function createRoomView(opts: RoomViewOptions): RoomView {
@@ -45,6 +48,7 @@ export function createRoomView(opts: RoomViewOptions): RoomView {
     getCameraPitchDeg: () => 0,
     setMarkerLevel() {},
     skip() {},
+    xrHost: () => null,
   };
 
   let renderer: THREE.WebGLRenderer;
@@ -89,10 +93,14 @@ export function createRoomView(opts: RoomViewOptions): RoomView {
   let ready = false;
   let firstFrameDone = false;
   const fps = createFpsMeter();
+  // While a headset session runs, the head pose drives the camera and drag and keys do nothing.
+  let rig: THREE.Group | null = null;
+  const xrOn = () => rig !== null;
 
   // Input: pointer drag and arrow keys. The camera only turns.
   let drag: { x: number; y: number } | null = null;
   const onDown = (e: PointerEvent) => {
+    if (xrOn()) return;
     drag = { x: e.clientX, y: e.clientY };
     el.setPointerCapture(e.pointerId);
     el.style.cursor = "grabbing";
@@ -102,11 +110,12 @@ export function createRoomView(opts: RoomViewOptions): RoomView {
     el.style.cursor = "grab";
   };
   const onMove = (e: PointerEvent) => {
-    if (!drag) return;
+    if (!drag || xrOn()) return;
     seatCam.drag(e.clientX - drag.x, e.clientY - drag.y);
     drag = { x: e.clientX, y: e.clientY };
   };
   const onKey = (e: KeyboardEvent) => {
+    if (xrOn()) return;
     const t = e.target as HTMLElement | null;
     if (t && /^(INPUT|TEXTAREA|SELECT)$/.test(t.tagName)) return;
     const dir = { ArrowLeft: "left", ArrowRight: "right", ArrowUp: "up", ArrowDown: "down" }[e.key] as
@@ -134,12 +143,20 @@ export function createRoomView(opts: RoomViewOptions): RoomView {
     const now = performance.now();
     const dt = now - lastTs;
     lastTs = now;
-    seatCam.step(dt);
-    camera.rotation.set(degToRad(seatCam.pitchDeg()), degToRad(seatCam.yawDeg()), 0);
     marker?.setLevel(markerLevel);
     marker?.tick(dt);
-    renderer.render(scene, camera);
-    opts.onCamera?.(seatCam.yawDeg(), seatCam.pitchDeg());
+    if (xrOn()) {
+      // three.js sets the camera from the headset inside render. The listener follows last frame's pose.
+      renderer.render(scene, camera);
+      const d = camera.getWorldDirection(new THREE.Vector3());
+      const a = yawPitchFromForward([d.x, d.y, d.z]);
+      opts.onCamera?.(a.yawDeg, a.pitchDeg);
+    } else {
+      seatCam.step(dt);
+      camera.rotation.set(degToRad(seatCam.pitchDeg()), degToRad(seatCam.yawDeg()), 0);
+      renderer.render(scene, camera);
+      opts.onCamera?.(seatCam.yawDeg(), seatCam.pitchDeg());
+    }
     if (ready) {
       if (!firstFrameDone) {
         firstFrameDone = true;
@@ -160,7 +177,7 @@ export function createRoomView(opts: RoomViewOptions): RoomView {
     renderer.setAnimationLoop(frame);
   };
   const onVisibility = () => {
-    if (disposed) return;
+    if (disposed || xrOn()) return;
     if (document.hidden) renderer.setAnimationLoop(null);
     else startLoop();
   };
@@ -206,6 +223,28 @@ export function createRoomView(opts: RoomViewOptions): RoomView {
     skip() {
       abort.abort();
     },
+    xrHost: () => ({
+      renderer: renderer as unknown as XrHost["renderer"],
+      seat: { position: seatCam.position, yawDeg: room.seat.yawDeg },
+      setRig(p: RigPlacement | null) {
+        if (p) {
+          rig = new THREE.Group();
+          rig.position.set(...p.position);
+          rig.rotation.y = p.yawRad;
+          rig.add(camera);
+          camera.position.set(0, 0, 0);
+          camera.rotation.set(0, 0, 0);
+          scene.add(rig);
+        } else if (rig) {
+          scene.remove(rig);
+          rig.remove(camera);
+          rig = null;
+          camera.position.set(...seatCam.position);
+          size();
+          startLoop();
+        }
+      },
+    }),
     dispose() {
       if (disposed) return;
       disposed = true;

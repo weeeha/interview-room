@@ -67,3 +67,39 @@ From documentation, not tested on the headset.
 - Meta documentation on Quest browser microphone prompts.
 - Spark 2.4.0 results on Quest 3, and any frame rate for 2M splats.
 - Any source on captions or DOM overlay in a Quest immersive-vr session.
+
+## Enter VR, written 2026-11-21, not tested on a headset
+
+Task 5.2. Nobody has run this on a Quest 3. Everything here is checked only by unit tests with fakes and by reading the code. In a desktop browser the button does not appear: Chromium reports `isSessionSupported("immersive-vr")` as false with no XR device (checked on the dev server on 2026-11-21).
+
+### What was built
+
+- `app/src/room/xr.ts`: `isXrSupported()` (false when `navigator.xr` is missing, when the check throws, or when it answers false), `enterVr(host, opts)`, `exitVr()`, and pure helpers for the rig placement and for turning the headset direction into yaw and pitch.
+- `RoomView` returns one new optional method, `xrHost()`. It gives xr.ts the renderer, the seat and a `setRig` switch. While a rig is set, pointer drag and arrow keys do nothing, the camera lives in a group placed at the seat, and the existing render loop (already `renderer.setAnimationLoop`) calls `onCamera` with the headset yaw and pitch, so the spatial voice listener turns with the head. The panner stays at its anchor. The visibility handler does not stop the loop during a session.
+- `Room.tsx`: an "Enter VR" button, shown only when the browser reports immersive VR, the backdrop mode is "room" and loaded, the session is live and the mic has no error. The mic is therefore already granted. The button reads "Exit VR" during a session. When the session ends, from the headset or the button, the rig is removed and the normal view returns. A failure shows a short line under the controls.
+- Reference space is "local". The room records give the seat as an eye position, and with "local" the head starts at the origin, so the rig sits at the seat position and a seated user is at seat height. "local-floor" would put the origin at the real floor and need an eye height guess. The rig is turned by the seat yaw so the starting gaze faces the seat direction.
+- No locomotion, no controllers, no hand tracking, no optional session features, no captions in XR (task 5.3).
+- Not changed: Spark settings. `maxStdDev` of `Math.sqrt(5)` and foveation are suggested above but not set, because the option names were not checked against Spark 2.4.0 here.
+
+### Steps to test on a Quest 3
+
+1. On the Mac: start the dev server on 8940 with the API on 8941 as usual. Connect the Quest by USB with developer mode on and USB debugging allowed.
+2. `adb devices` must list the headset. Run `adb reverse tcp:8940 tcp:8940` (Meta's debugging page uses this pattern, see Question 3). Add `adb reverse tcp:8941 tcp:8941` only if the browser talks to the API directly; the Vite proxy normally makes that unnecessary.
+3. In the Quest browser open `http://localhost:8940/`. On the headset `localhost` is a secure context.
+4. Set up an interview, press Start and allow the microphone in the flat view. Wait until the room shows.
+5. Press "Enter VR". The headset session should start. Check: the room is at human scale from the seat, the interviewer marker is where it was in the flat view, the voice comes from that spot and stays there when you turn your head, and the interviewer hears you.
+6. Exit with the Quest menu button and with the "Exit VR" button (pointer on the page before entering is not possible in VR, so test that one only if the page is still reachable). The normal view should return, drag and arrow keys should work again, and the voice loop should not have restarted.
+7. Note the frame rate from `?debug=1` in the flat view and a headset-side rate if you have a tool for it.
+
+### Guesses until tested
+
+- "local" is granted in an immersive-vr session on the Quest browser without being listed as a feature. The WebXR spec says it is always available, but this was not confirmed on the device.
+- The Quest recentre action may move the "local" origin, so the seat could drift from the room's seat after a recentre.
+- Camera `near` of 0.05 and `far` of 200 are right for the headset.
+- Spark renders correctly through three.js's XR camera pair with this setup, and the 2M splat room holds a usable frame rate (the notes above give 1M as the Spark guidance).
+- Web Audio keeps playing, and the listener orientation update from `onCamera` runs at headset rate, during a session.
+- The microphone keeps working inside the session (a forum report says yes, Question 3).
+- Pointer events from Quest controllers hitting the canvas do nothing harmful, and the page DOM controls are not reachable inside the headset.
+- Browser tab hidden or blurred events inside the headset do not need handling.
+- The camera returns to the seat pose cleanly after the session, with the canvas at its old size.
+- Leaning or walking moves the camera but not the audio listener position, which stays at the seat. Seated use should make this small.
