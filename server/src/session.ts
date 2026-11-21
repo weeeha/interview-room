@@ -406,10 +406,13 @@ export function createSessionService(opts: SessionServiceOptions) {
         await mkdir(join(dir, "audio"), { recursive: true });
         const file = `turn-${pad2(candIdx)}.wav`;
         await writeFile(join(dir, "audio", file), wav as Buffer);
+        // The candidate is answering the question the interviewer asked last.
+        const answering = [...session.turns].reverse().find((t) => t.role === "interviewer" && t.questionId)?.questionId;
         session.turns.push({
           index: candIdx,
           role: "candidate",
           kind: "answer",
+          ...(answering ? { questionId: answering } : {}),
           text,
           audioPath: `audio/${file}`,
           startMs: meta.speechStartMs ?? now,

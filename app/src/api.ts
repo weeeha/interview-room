@@ -1,4 +1,5 @@
 // Browser client for the local server. The shapes follow the HTTP API in the build contract.
+import type { Room } from "../../shared/types";
 
 export type ProviderNames = { stt: string; llm: string; tts: string };
 export type Health = {
@@ -49,6 +50,7 @@ export type TurnLine =
 
 export type SessionDetail = {
   id: string;
+  roomId?: string;
   startedAt: string;
   status: string;
   targetDurationSec: number;
@@ -113,6 +115,12 @@ export async function listRooms(signal?: AbortSignal): Promise<RoomInfo[]> {
   const body = await getJson<{ rooms?: RoomInfo[] } | RoomInfo[]>("/api/rooms", signal);
   const rooms = Array.isArray(body) ? body : (body.rooms ?? []);
   return rooms.map((r) => ({ id: r.id, label: r.label, description: r.description }));
+}
+
+/** The full Room records (seat, anchors, splat path). The room view needs these; the setup screen only needs the list. */
+export async function getRooms(signal?: AbortSignal): Promise<Room[]> {
+  const body = await getJson<{ rooms?: Room[] } | Room[]>("/api/rooms", signal);
+  return Array.isArray(body) ? body : (body.rooms ?? []);
 }
 
 export async function listSessions(signal?: AbortSignal): Promise<SessionSummary[]> {

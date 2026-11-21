@@ -2,7 +2,9 @@
 // Builds a fake microphone WAV (macOS say + ffmpeg), starts a throwaway headless Chrome that plays it as
 // the microphone, drives the app over the DevTools protocol, and prints what happened.
 // Needs `npm run dev` running and the model services up. Chrome is muted, so nothing is audible.
-// Usage: node scripts/e2e-fake-mic.mjs [--app http://localhost:8940] [--minutes 5] [--turns 4] [--max-sec 240]
+// Usage: node scripts/e2e-fake-mic.mjs [--app http://localhost:8940] [--minutes 5] [--turns 4] [--max-sec 240] [--query 'splat=<url>']
+// --query adds extra query parameters to the session page (for example a sample splat in dev). The run prints the room notice
+// text and the backdrop mode the page showed, so a missing room file (AC-4) can be read from the output.
 /* global process, console, fetch, WebSocket, setTimeout */
 import { spawn, execFileSync } from "node:child_process";
 import { copyFileSync, existsSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
@@ -17,6 +19,7 @@ const APP = arg("app", "http://localhost:8940");
 const LENGTH_MIN = Number(arg("minutes", "5"));
 const WANT_TURNS = Number(arg("turns", "4"));
 const MAX_SEC = Number(arg("max-sec", "240"));
+const EXTRA_QUERY = arg("query", "");
 const CHROME = "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome";
 const PORT = 9333;
 const root = resolve(import.meta.dirname, "..");
@@ -191,7 +194,7 @@ async function main() {
   out.sessionId = await cdp.eval(`location.pathname.split('/')[2]`);
   console.log(`session ${out.sessionId}`);
   // A full navigation so the debug line is on (?debug=1) and the page starts clean.
-  await cdp.send("Page.navigate", { url: `${APP}/session/${out.sessionId}?debug=1` });
+  await cdp.send("Page.navigate", { url: `${APP}/session/${out.sessionId}?debug=1${EXTRA_QUERY ? `&${EXTRA_QUERY}` : ""}` });
   await waitFor(() => cdp.eval(`[...document.querySelectorAll('button')].some(b => b.textContent.trim() === 'Start')`), "the Start button", 10000);
   await waitFor(() => click("Start"), "the Start gesture button", 10000);
   const t0 = Date.now();
@@ -228,6 +231,7 @@ async function main() {
   }
 
   out.page = await cdp.eval(`JSON.stringify({ ...window.__e2e, status: document.querySelector('.status')?.textContent })`).then(JSON.parse);
+  out.room = await cdp.eval(`JSON.stringify({ backdrop: document.body.dataset.backdrop, notice: document.querySelector('[data-room-notice]')?.textContent ?? null, webgl: !!document.createElement('canvas').getContext('webgl2'), voice: window.__room?.voice?.() ?? null, fps: [...document.querySelectorAll('[data-debug] div')].find(d => d.textContent.startsWith('fps'))?.textContent ?? null })`).then(JSON.parse);
   out.debugLine = await cdp.eval(`document.querySelector('[data-debug]')?.textContent ?? ''`);
   await click("End session");
   await waitFor(() => cdp.eval(`location.pathname.startsWith('/report/')`), "the report route after End", 20000).catch((e) =>
@@ -255,6 +259,7 @@ console.log(`session id: ${out.sessionId}`);
 console.log(`status: ${out.status}`);
 console.log(`chrome: ${out.chromeVersion}`);
 console.log(`capture path: ${JSON.stringify(out.page ?? {})}`);
+console.log(`room: ${JSON.stringify(out.room ?? {})}`);
 console.log(`candidate turns: ${turns.filter((t) => t.role === "candidate").length}`);
 console.log(`gap values (ms): ${JSON.stringify(gaps)} median ${sorted.length ? sorted[Math.floor(sorted.length / 2)] : "none"}`);
 console.log(`interrupted turns: ${JSON.stringify(turns.filter((t) => t.interrupted))}`);

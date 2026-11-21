@@ -202,6 +202,20 @@ describe("turn stream", () => {
     expect(parseLines(rest).some((l) => l.type === "done")).toBe(true);
   });
 
+  it("a candidate turn carries the id of the question it answers", async () => {
+    const { app } = setup({ stt: createFakeSTT(["I moved the team to a shared board.", "It cut errors in half."]) });
+    const s = await create(app);
+    await turn(app, s.id, { kind: "start" });
+    await turn(app, s.id, { kind: "answer" }, true);
+    await turn(app, s.id, { kind: "answer" }, true);
+    const saved = await getSession(app, s.id);
+    const qid = saved.turns[0]?.questionId;
+    expect(qid).toBeTruthy();
+    const answers = saved.turns.filter((t) => t.role === "candidate");
+    expect(answers).toHaveLength(2);
+    for (const a of answers) expect(a.questionId).toBe(qid);
+  });
+
   it("an empty transcript returns only the transcript line and no interviewer turn", async () => {
     const { app } = setup({ stt: createFakeSTT(["   "]) });
     const s = await create(app);
