@@ -22,7 +22,7 @@ type PerQuestion = FeedbackReport["perQuestion"][number];
 type Note = PerQuestion["strengths"][number];
 
 // A note that may carry the unverified warning. The shared type is not changed.
-export type MarkedNote = Note & { unverified?: true };
+export type MarkedNote = Note & { unverified?: boolean };
 export type MarkedReport = Omit<FeedbackReport, "perQuestion"> & {
   perQuestion: Array<Omit<PerQuestion, "strengths" | "gaps"> & { strengths: MarkedNote[]; gaps: MarkedNote[] }>;
 };

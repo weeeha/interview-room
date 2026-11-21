@@ -70,8 +70,8 @@ export type FeedbackReport = {
   summary: string;
   perQuestion: Array<{
     questionId: string;
-    strengths: Array<{ note: string; turnIndex: number; quote: string }>;
-    gaps: Array<{ note: string; turnIndex: number; quote: string }>;
+    strengths: Array<{ note: string; turnIndex: number; quote: string; unverified?: boolean }>;
+    gaps: Array<{ note: string; turnIndex: number; quote: string; unverified?: boolean }>;
     rewrite?: string;
     rubric: { structure: 1 | 2 | 3 | 4; specificity: 1 | 2 | 3 | 4; relevance: 1 | 2 | 3 | 4; concision: 1 | 2 | 3 | 4 };
   }>;
