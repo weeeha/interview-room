@@ -31,3 +31,15 @@ The owner said to take the recommended decision at each open choice and record i
 - Speed pass, model first token (about 0.55 s): needs a shorter or reordered prompt so llama-server can reuse more of its cache (persona first, question after), or a smaller or faster model.
 - Speed pass, streaming STT: would remove the remaining wait for whisper when the speaker pauses for less than 550 ms; needs a streaming whisper build.
 - Speed pass, report earlier: start each question's feedback call as soon as that question is done during the session; needs a decision on sharing the model with the live interview.
+- Marble room (tasks 0.2, 0.3, 0.5): generate and export one room. Needs: the owner's Marble account, and the Standard plan if the free plan cannot export. Prompts and the checklist are in `spike/`.
+- Room load time and frame rate (AC-1, AC-2, task 0.4 step 6): never measured on a real room. Needs: the Marble export, then Chrome and Safari in a visible window.
+- Extra rooms and the two-voice panel (task 3.5): prompts written, no code. Needs: one real room first, and Marble generations.
+- Real-input session (tasks 2.7, 3.6, 4.5; AC-11): a scripted stand-in with a real bank ran instead. Needs: the owner at a microphone for 10 minutes, then his marks on the follow-ups and the report.
+- Voice position by ear (AC-5): the panner values follow the view, nobody has listened. Needs: the owner with headphones.
+- Safari (AC-18): not opened once on any screen. Needs: the owner, or Safari remote automation switched on by him.
+- Headset (task 5.3, and the check of 5.2): Enter VR is written and untested. Needs: a Quest 3.
+- Owner review of the draft (task 1.5 steps 3 and 4): the app was built from the draft without it. Needs: the owner to open `/draft/index.html` and say what changes.
+- Checks dropped to save usage: frame rate on a sample scene in real Chrome, the browser voice fallback (`speechSynthesis`), the ScriptProcessor capture fallback, a rerun of the real-bank stand-in after the alternate-wording fix. Needs: one short executor run, no person.
+- Parser reading to confirm: 245 of 2053 parsed questions still contain a quote character, and any level-3 heading that starts with a number counts as a question. Needs: the owner to look at a few parsed questions from his own banks.
+- Paid interviewer model: the Claude provider is written and never called. Needs: the owner's go and `ALLOW_PAID=1`.
+- Pull requests: the branch is local only. Needs: a push from the personal account.
