@@ -1,6 +1,7 @@
 import type { Question, QuestionBank } from "../../../shared/types.ts";
 
-const HEADING = /^###\s+(\d+)\.\s+"(.*)"\s*$|^###\s+(\d+)\.\s+"(.*)$/;
+// A question heading: level 3, a number (N or N.N, optional trailing dot), then the text, quoted or not.
+const HEADING = /^###\s+(\d+(?:\.\d+)?)\.?\s+(\S.*?)\s*$/;
 const INCLUDE = /\{\{[^}]*\}\}/g;
 const EMOJI = /[\p{Extended_Pictographic}️‍]/gu;
 const WARNING = /⚠/;
@@ -139,8 +140,9 @@ export function parseBank(markdown: string, opts: { id: string; sourcePath: stri
     const h = HEADING.exec(line);
     if (h) {
       flush();
-      const number = h[1] ?? h[3]!;
-      const text = h[2] ?? h[4]!.replace(/"\s*$/, "");
+      const number = h[1]!.replace(".", "-");
+      let text = h[2]!;
+      if (text.startsWith('"')) text = text.slice(1).replace(/"\s*$/, "");
       current = { number, text, body: [], tags: section ? [section] : [] };
       continue;
     }

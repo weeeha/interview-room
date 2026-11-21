@@ -68,4 +68,37 @@ describe("banks route", () => {
     expect(text).not.toContain("referenceAnswer");
     expect(text).not.toContain("redesign of a booking");
   });
+
+  it("test_reads_unquoted_and_decimal_headings", () => {
+    const md = [
+      "# Invented bank",
+      "## Craft",
+      '### 1. "Quoted question one?"',
+      "**Say:** Answer one.",
+      "### 2. Unquoted question two?",
+      "**Say:** Answer two.",
+      "### 2.1 Decimal without dot?",
+      "**Say:** Answer three.",
+      "### 2.2. Decimal with dot?",
+      "**Guard:** Do not boast.",
+      "### 3.\tTab after number?",
+      "### Notes on this bank",
+      "Not a question.",
+      "### 12) Not a heading form",
+    ].join("\n");
+    const bank = parseBank(md, { id: "b", sourcePath: "b.md" });
+    expect(bank.questions.map((q) => q.id)).toEqual(["b-q1", "b-q2", "b-q2-1", "b-q2-2", "b-q3"]);
+    expect(bank.questions.map((q) => q.text)).toEqual([
+      "Quoted question one?",
+      "Unquoted question two?",
+      "Decimal without dot?",
+      "Decimal with dot?",
+      "Tab after number?",
+    ]);
+    expect(bank.questions[2]!.referenceAnswer).toBe("Answer three.");
+    expect(bank.questions[3]!.doNotSay).toEqual(["Do not boast."]);
+    expect(bank.questions[4]!.hasReferenceAnswer).toBe(false);
+    // the heading that is not a question must not leak its body into the previous question
+    expect(bank.questions[4]!.referenceAnswer).toBeUndefined();
+  });
 });
