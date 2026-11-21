@@ -236,12 +236,15 @@ describe("turn stream", () => {
     expect(prompt[prompt.length - 1]).toMatchObject({ type: "done", kind: "prompt" });
     const offer = await turn(app, s.id, { kind: "silence_offer_next" });
     const kinds = offer.filter((l) => l.type === "sentence").map((l) => (l as { kind: string }).kind);
-    expect(kinds).toEqual(["prompt", "question"]);
-    expect(offer[offer.length - 1]).toMatchObject({ type: "done", kind: "question" });
+    expect(kinds).toEqual(["prompt"]);
+    expect(offer[offer.length - 1]).toMatchObject({ type: "done", kind: "prompt" });
+    const moved = await turn(app, s.id, { kind: "silence_offer_next" });
+    expect(moved.filter((l) => l.type === "sentence").map((l) => (l as { kind: string }).kind)).toEqual(["question"]);
+    expect(moved[moved.length - 1]).toMatchObject({ type: "done", kind: "question" });
     const saved = await getSession(app, s.id);
     const qs = saved.turns.filter((t) => t.kind === "question").map((t) => t.questionId);
     expect(new Set(qs).size).toBe(qs.length);
-    expect(saved.turns.map((t) => t.kind)).toEqual(["question", "prompt", "question"]);
+    expect(saved.turns.map((t) => t.kind)).toEqual(["question", "prompt", "prompt", "question"]);
   });
 
   it("test_barge_in_stops_playback (server side: interruption and spoken text are recorded)", async () => {

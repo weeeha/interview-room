@@ -192,18 +192,85 @@ describe("interviewer engine", () => {
     expect(p).toEqual([{ text: NEUTRAL_LINES.silencePrompt, kind: "prompt" }]);
     expect(h.llm.calls).toHaveLength(0);
     const o = await h.send({ kind: "silence_offer_next" }, 12);
-    expect(o.map((s) => s.kind)).toEqual(["prompt", "question"]);
-    expect(o[0]?.text).toBe(NEUTRAL_LINES.offerNext);
-    expect(o[1]?.questionId).toBe("q2");
+    expect(o).toEqual([{ text: NEUTRAL_LINES.offerNext, kind: "prompt" }]);
+    expect(h.llm.calls).toHaveLength(0);
   });
 
-  it("test_silence_offer_closes_when_time_is_up", async () => {
+  it("test_offer_is_a_question_in_each_profile", () => {
+    for (const lines of [linesFor(WARM), linesFor(NEUTRAL), linesFor(PROBING)]) {
+      expect(lines.offerNext.trim().endsWith("?")).toBe(true);
+    }
+  });
+
+  it("test_offer_agreement_moves_to_next_question", async () => {
+    for (const reply of ["Yes.", "yes please", "Sure, move on.", "Okay, next question", "skip it", "Let's move on"]) {
+      const h = harness({});
+      await h.send({ kind: "start" });
+      await h.send({ kind: "silence_offer_next" }, 20);
+      const out = await h.send({ kind: "answer", text: reply }, 3);
+      expect(out.map((s) => s.kind), reply).toEqual(["question"]);
+      expect(out[0]?.questionId).toBe("q2");
+      expect(h.llm.calls).toHaveLength(0);
+    }
+  });
+
+  it("test_offer_other_speech_is_an_answer", async () => {
+    for (const reply of [
+      "No, I want to answer it.",
+      "Yes I led the migration and it took three weeks.",
+      "Actually I do have an example from my last role.",
+    ]) {
+      const h = harness({ llm: createFakeLLM(["Which part did you own yourself?"]) });
+      await h.send({ kind: "start" });
+      await h.send({ kind: "silence_offer_next" }, 20);
+      const out = await h.send({ kind: "answer", text: reply }, 10);
+      expect(out.map((s) => s.kind), reply).toEqual(["followup"]);
+      expect(h.llm.calls).toHaveLength(1);
+    }
+  });
+
+  it("test_offer_then_more_silence_moves_on", async () => {
+    for (const again of ["silence_offer_next", "silence_prompt"] as const) {
+      const h = harness({});
+      await h.send({ kind: "start" });
+      await h.send({ kind: "silence_offer_next" }, 20);
+      const out = await h.send({ kind: "silence_offer_next" }, 12);
+      expect(out.map((s) => s.kind)).toEqual(["question"]);
+      expect(out[0]?.questionId).toBe("q2");
+      // the offer is not repeated: a later silence starts again with the short prompt or a new offer
+      const h2 = harness({});
+      await h2.send({ kind: "start" });
+      await h2.send({ kind: "silence_offer_next" }, 20);
+      const out2 = await h2.send({ kind: again }, 8);
+      expect(out2.map((s) => s.kind)).toEqual(["question"]);
+    }
+  });
+
+  it("test_offer_waiting_state_survives_restore", async () => {
+    const h = harness({});
+    await h.send({ kind: "start" });
+    await h.send({ kind: "silence_offer_next" }, 20);
+    const saved = h.engine.state();
+    expect(JSON.parse(JSON.stringify(saved))).toMatchObject({ awaitingOffer: true });
+    const h2 = harness({});
+    h2.engine.restore(saved);
+    const out = await h2.send({ kind: "answer", text: "yes" }, 2);
+    expect(out.map((s) => s.kind)).toEqual(["question"]);
+    // a state saved before this field existed restores as not waiting
+    const old = { ...(saved as Record<string, unknown>) };
+    delete old.awaitingOffer;
+    const h3 = harness({ llm: createFakeLLM(["Say more about that."]) });
+    h3.engine.restore(old);
+    const out3 = await h3.send({ kind: "answer", text: "yes" }, 2);
+    expect(out3.map((s) => s.kind)).toEqual(["followup"]);
+  });
+
+  it("test_offer_not_made_when_time_is_up", async () => {
     const h = harness({ target: 100 });
     await h.send({ kind: "start" });
     const o = await h.send({ kind: "silence_offer_next" }, 80);
-    expect(o[0]?.kind).toBe("prompt");
-    expect(o.slice(1).every((s) => s.kind === "closing")).toBe(true);
-    expect(o.length).toBeGreaterThan(1);
+    expect(o.length).toBeGreaterThan(0);
+    expect(o.every((s) => s.kind === "closing")).toBe(true);
     expect(h.engine.isClosed()).toBe(true);
     expect(await h.send({ kind: "answer", text: "late" })).toEqual([]);
   });

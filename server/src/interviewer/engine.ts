@@ -54,6 +54,8 @@ type EngineState = {
   questionStartMs: number;
   transcript: Entry[];
   lastTurnStart: number;
+  /** True after the offer to move on was spoken and before the candidate replied. */
+  awaitingOffer: boolean;
 };
 
 const PROMPT_TEMPLATE = readFileSync(new URL("./prompt.md", import.meta.url), "utf8");
@@ -71,6 +73,26 @@ export function buildSystemPrompt(a: { profile: InterviewerProfile; question: Qu
     .replace("{{setup}}", setup)
     .replace("{{doNotSay}}", doNotSay)
     .trim();
+}
+
+const AGREE_CORE = new Set(["yes", "yeah", "yep", "yup", "sure", "okay", "ok", "next", "skip", "alright", "fine"]);
+const AGREE_PADDING = new Set([
+  "please", "thanks", "thank", "you", "move", "on", "to", "the", "question", "one", "it", "lets", "let", "s", "go",
+  "ahead", "we", "can", "that", "sounds", "good", "and", "then", "now", "moving", "onward",
+]);
+
+/** True when the whole reply is only an agreement to move on, such as "yes", "sure, next" or "let's move on". */
+export function isAgreement(text: string): boolean {
+  const words = text
+    .toLowerCase()
+    .replace(/[^a-z\s']/g, " ")
+    .replace(/'/g, " ")
+    .split(/\s+/)
+    .filter(Boolean);
+  if (words.length === 0 || words.length > 6) return false;
+  if (!words.every((w) => AGREE_CORE.has(w) || AGREE_PADDING.has(w))) return false;
+  const joined = ` ${words.join(" ")} `;
+  return words.some((w) => AGREE_CORE.has(w)) || joined.includes(" move on ");
 }
 
 function oneLine(s: string): string {
@@ -104,6 +126,7 @@ export function createEngine(opts: EngineOptions): Engine {
       questionStartMs: 0,
       transcript: [],
       lastTurnStart: 0,
+      awaitingOffer: false,
     };
   }
 
@@ -225,6 +248,12 @@ export function createEngine(opts: EngineOptions): Engine {
 
   async function* answer(text: string, signal?: AbortSignal): AsyncGenerator<EngineSentence> {
     st.transcript.push({ role: "candidate", text: oneLine(text), kind: "answer" });
+    const offered = st.awaitingOffer;
+    st.awaitingOffer = false;
+    if (offered && isAgreement(text)) {
+      yield* askNext();
+      return;
+    }
     const qn = current();
     if (!qn) {
       yield* askNext();
@@ -276,11 +305,23 @@ export function createEngine(opts: EngineOptions): Engine {
         yield* answer(event.text, signal);
         return;
       case "silence_prompt":
-        for (const s of splitSentences(lines.silencePrompt)) yield say(s, "prompt");
-        return;
       case "silence_offer_next":
+        if (st.awaitingOffer) {
+          // The offer got no reply: move on without asking again.
+          st.awaitingOffer = false;
+          yield* askNext();
+          return;
+        }
+        if (event.kind === "silence_prompt") {
+          for (const s of splitSentences(lines.silencePrompt)) yield say(s, "prompt");
+          return;
+        }
+        if (timeUp()) {
+          yield* closing();
+          return;
+        }
+        st.awaitingOffer = true;
         for (const s of splitSentences(lines.offerNext)) yield say(s, "prompt");
-        yield* askNext();
         return;
     }
   }
