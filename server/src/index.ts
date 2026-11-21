@@ -3,6 +3,8 @@ import { Hono } from "hono";
 import type { Session } from "../../shared/types.ts";
 import { bankDir } from "./banks/load.ts";
 import { banksRoutes } from "./banks/routes.ts";
+import { createFakeFeedbackLLM, createFeedbackService, feedbackRoutes } from "./feedback/service.ts";
+import type { LLMProvider } from "./providers/llm/types.ts";
 import { createProviders, type Providers } from "./providers/index.ts";
 import { roomsRoutes } from "./routes/rooms.ts";
 import { sessionRoutes } from "./routes/session.ts";
@@ -24,8 +26,10 @@ export type AppOptions = {
   roomsDir?: string;
   mediaDir?: string;
   now?: () => number;
-  /** The feedback pass plugs in here. Default: nothing. */
+  /** Extra hook after a session ends (the feedback pass always runs). */
   onSessionEnded?: (session: Session) => void | Promise<void>;
+  /** Model for the feedback pass. Default: the real one, or a deterministic fake when providers are injected. */
+  feedbackLLM?: () => LLMProvider;
   /** Set by createApp so callers (tests, the feedback task) can reach the service. */
   onService?: (service: SessionService) => void;
 };
@@ -34,12 +38,23 @@ export function createApp(env: NodeJS.ProcessEnv = process.env, opts: AppOptions
   const app = new Hono();
   let providers = opts.providers;
   const getProviders = () => (providers ??= createProviders(env));
+  const sessionsDir = resolve(opts.sessionsDir ?? env.SESSIONS_DIR ?? "./sessions");
+  const feedback = createFeedbackService({
+    sessionsDir,
+    banksDir: bankDir(env),
+    env,
+    getLLM: opts.feedbackLLM ?? (opts.providers ? () => createFakeFeedbackLLM() : undefined),
+  });
   const service = createSessionService({
     getProviders,
-    sessionsDir: resolve(opts.sessionsDir ?? env.SESSIONS_DIR ?? "./sessions"),
+    sessionsDir,
     banksDir: bankDir(env),
     now: opts.now,
-    onSessionEnded: opts.onSessionEnded,
+    onSessionEnded: (session) => {
+      feedback.onSessionEnded(session);
+      return opts.onSessionEnded?.(session);
+    },
+    reports: feedback,
   });
   opts.onService?.(service);
 
@@ -47,5 +62,6 @@ export function createApp(env: NodeJS.ProcessEnv = process.env, opts: AppOptions
   app.route("/", banksRoutes(env));
   app.route("/", roomsRoutes(env, { roomsDir: opts.roomsDir, mediaDir: opts.mediaDir }));
   app.route("/", sessionRoutes(service, env));
+  app.route("/", feedbackRoutes(feedback));
   return app;
 }

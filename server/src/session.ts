@@ -66,6 +66,8 @@ export type SessionServiceOptions = {
   now?: () => number;
   /** Called once when a session ends. The feedback pass plugs in here. */
   onSessionEnded?: (session: Session) => void | Promise<void>;
+  /** Report status source (the feedback service). Without it get() reports "none" or "ready" from report.json. */
+  reports?: { info(id: string): Promise<{ report?: unknown; reportStatus: ReportStatus; reportStage?: string; reportError?: string; reportWarnings?: string[] }> };
 };
 
 type Timing = { mark: number; first?: number };
@@ -270,8 +272,9 @@ export function createSessionService(opts: SessionServiceOptions) {
     return session;
   }
 
-  async function get(id: string): Promise<{ session: Session; report?: unknown; reportStatus: ReportStatus }> {
+  async function get(id: string): Promise<{ session: Session; report?: unknown; reportStatus: ReportStatus; reportStage?: string; reportError?: string; reportWarnings?: string[] }> {
     const entry = await getEntry(id);
+    if (opts.reports) return { session: entry.session, ...(await opts.reports.info(id)) };
     let report: unknown;
     try {
       report = JSON.parse(await readFile(join(dirOf(id), "report.json"), "utf8"));
