@@ -2,6 +2,11 @@ import { createClaudeLLM } from "./llm/claude.ts";
 import { createFakeLLM } from "./llm/fake.ts";
 import { createLocalLLM } from "./llm/local.ts";
 import type { LLMProvider } from "./llm/types.ts";
+import { createBrowserTTS } from "./tts/browser.ts";
+import { createTtsCache } from "./tts/cache.ts";
+import { createFakeTTS } from "./tts/fake.ts";
+import { createLocalTTS } from "./tts/local.ts";
+import type { TTSProvider } from "./tts/types.ts";
 import { createFakeSTT } from "./stt/fake.ts";
 import type { STTProvider } from "./stt/types.ts";
 import { createWhisperSTT } from "./stt/whisper.ts";
@@ -34,12 +39,29 @@ export function createSTTProvider(env: Env = process.env): STTProvider {
   }
 }
 
+export function createTTSProvider(env: Env = process.env): TTSProvider {
+  const name = env.TTS_PROVIDER || "browser";
+  switch (name) {
+    case "browser":
+      return createBrowserTTS();
+    case "fake":
+      return createFakeTTS();
+    case "local":
+      return createLocalTTS({
+        url: env.LOCAL_TTS_URL || "http://127.0.0.1:8943",
+        cache: createTtsCache(env.TTS_CACHE_DIR || "media/tts-cache"),
+      });
+    default:
+      throw new Error(`Unknown TTS_PROVIDER "${name}". Use browser, local or fake.`);
+  }
+}
+
 export type Providers = {
   llm: LLMProvider;
   stt: STTProvider;
-  // SLOT (later task): tts: TTSProvider, built from TTS_PROVIDER (browser | local | fake)
+  tts: TTSProvider;
 };
 
 export function createProviders(env: Env = process.env): Providers {
-  return { llm: createLLMProvider(env), stt: createSTTProvider(env) };
+  return { llm: createLLMProvider(env), stt: createSTTProvider(env), tts: createTTSProvider(env) };
 }
