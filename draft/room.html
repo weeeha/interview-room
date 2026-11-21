@@ -1,0 +1,118 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Session in progress - Interview room</title>
+<link rel="stylesheet" href="draft.css">
+</head>
+<body class="force-dark room-page" data-state="default" data-bg="dark"
+      data-states="default interviewer-speaking candidate-speaking silence-prompt room-loading room-unavailable mic-denied provider-error ending">
+
+<header class="draft-bar">
+  <span>Draft: room screen. Invented content.</span>
+  <nav aria-label="Draft screens">
+    <a href="index.html">Flow map</a>
+    <a href="setup.html">Setup</a>
+    <a href="room.html" aria-current="page">Room</a>
+    <a href="report.html">Report</a>
+  </nav>
+</header>
+
+<main class="room">
+
+  <div class="room-backdrop">
+    <span class="bd-room">room view (placeholder for the Marble scene)</span>
+    <span class="bd-flat">Plain backdrop. Captions carry the session.</span>
+    <span class="marker" data-not="room-loading mic-denied">Interviewer<span data-only="interviewer-speaking"> is speaking</span></span>
+  </div>
+
+  <div class="room-top">
+    <p class="status" role="status">
+      <span data-only="default">Your turn</span>
+      <span data-only="interviewer-speaking">Interviewer is speaking</span>
+      <span data-only="candidate-speaking">You are speaking</span>
+      <span data-only="silence-prompt">Waiting for your answer</span>
+      <span data-only="room-loading">Loading the room</span>
+      <span data-only="room-unavailable">Room unavailable</span>
+      <span data-only="mic-denied">Microphone blocked</span>
+      <span data-only="provider-error">Interviewer voice failed</span>
+      <span data-only="ending">Ending the session</span>
+    </p>
+    <p class="timer"><time>04:12</time> of 10:00, question 2 of 5</p>
+  </div>
+
+  <div class="room-notice">
+    <div class="banner" data-only="room-loading">
+      <p class="banner-title">Loading the room, 62 percent.</p>
+      <p>The room is a large file. You can start with a plain backdrop and the same voice interview.</p>
+      <p><progress value="62" max="100" aria-label="Room loading progress">62%</progress></p>
+      <button type="button" class="btn">Skip room</button>
+    </div>
+    <div class="banner" data-only="room-unavailable" role="status">
+      <p class="banner-title">Room unavailable, using plain backdrop.</p>
+      <p>The room file did not load. The interview works the same without it.</p>
+    </div>
+    <div class="banner error" data-only="mic-denied" role="alert">
+      <p class="banner-title">The browser blocked the microphone.</p>
+      <p>Allow the microphone in the address bar, then try again. The interview cannot hear you until you do.</p>
+      <button type="button" class="btn btn-primary" data-retry>Retry microphone</button>
+    </div>
+    <div class="banner error" data-only="provider-error" role="alert">
+      <p class="banner-title">The interviewer voice did not respond.</p>
+      <p>Text to speech failed on the local server. Your answer so far is kept. Retry to hear the question again.</p>
+      <button type="button" class="btn btn-primary" data-retry>Retry voice</button>
+    </div>
+    <div class="banner" data-only="ending" role="status">
+      <p class="banner-title">Saving audio and transcript.</p>
+      <p>The report opens when it is ready. This usually takes under a minute.</p>
+      <p><progress aria-label="Saving progress"></progress></p>
+      <a class="btn btn-primary" href="report.html">Open report</a>
+    </div>
+  </div>
+
+  <div class="room-bottom">
+    <div class="captions" data-not="room-loading mic-denied" aria-live="polite">
+      <p class="cap-who">Interviewer</p>
+      <p class="cap-text">First question: tell me about a project you led from start to finish.</p>
+      <p class="cap-hint">Say something when you are ready.</p>
+    </div>
+
+    <div class="controls">
+      <div class="mic">
+        <span class="meter" role="meter" aria-label="Microphone level" aria-valuemin="0" aria-valuemax="5" aria-valuenow="0" data-level="0"><i></i><i></i><i></i><i></i><i></i></span>
+        <span id="mic-text">Mic on</span>
+      </div>
+      <div class="buttons">
+        <button type="button" class="btn" id="mute" aria-pressed="false"><span class="mute-label">Mute</span><kbd aria-hidden="true">M</kbd></button>
+        <button type="button" class="btn" id="end">End session<kbd aria-hidden="true">E</kbd></button>
+      </div>
+    </div>
+    <p class="note shortcuts">Keyboard: press M to mute or unmute, E to end the session. No feedback is shown during the interview.</p>
+  </div>
+
+</main>
+
+<footer class="draft-states page">
+  <p>Draft states for this screen</p>
+  <ul>
+    <li><a href="room.html" data-state-link="default">Default</a></li>
+    <li><a href="room.html?state=interviewer-speaking" data-state-link="interviewer-speaking">Interviewer speaking</a></li>
+    <li><a href="room.html?state=candidate-speaking" data-state-link="candidate-speaking">Candidate speaking</a></li>
+    <li><a href="room.html?state=silence-prompt" data-state-link="silence-prompt">Silence prompt</a></li>
+    <li><a href="room.html?state=room-loading" data-state-link="room-loading">Room loading</a></li>
+    <li><a href="room.html?state=room-unavailable" data-state-link="room-unavailable">Room unavailable</a></li>
+    <li><a href="room.html?state=mic-denied" data-state-link="mic-denied">Mic denied</a></li>
+    <li><a href="room.html?state=provider-error" data-state-link="provider-error">Provider error</a></li>
+    <li><a href="room.html?state=ending" data-state-link="ending">Ending</a></li>
+  </ul>
+  <p class="gap-top">Placeholder background for the caption check:
+    <a href="room.html?bg=dark" data-bg-link="dark">Dark</a>
+    <a href="room.html?bg=light" data-bg-link="light">Light</a>
+    (wide screens only).</p>
+  <p class="gap-top"><button type="button" class="btn btn-small" id="play-script">Play scripted exchange</button></p>
+</footer>
+
+<script src="draft.js"></script>
+</body>
+</html>
