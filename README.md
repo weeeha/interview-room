@@ -4,11 +4,11 @@
 
 **Idea.** A voice interviewer asks questions from your own bank inside a room generated once with World Labs Marble, follows up on what you said, and writes feedback after the session. The voice loop comes first and the room second, because the questions and the feedback carry the value.
 
-**Built.** Spec only so far: a design spec and an implementation plan for phases 0 to 5, and no code. 3 commits on 2 days, Oct 27 to Oct 30, 2026.
+**Built.** A working local app: the voice loop (microphone, whisper.cpp, a local model, Kokoro voice, barge-in and silence prompts), a question bank parser, a report with quotes checked word for word against the transcript, a room viewer with a flat-backdrop fallback, and a static draft of the screens in `draft/`. No Marble room has been generated yet, so the room screen runs on the fallback. Measured numbers, passes and failures are in [docs/acceptance-results.md](docs/acceptance-results.md). 35 commits on 5 days, Oct 27 to Nov 21, 2026.
 
 **Decision.** Feedback arrives after the session, with no coaching during the interview. The interviewer never grades live, which keeps the conversation natural and lets the feedback pass read the whole transcript.
 
-Status: exploration. Live URL: none. Started 2026-10-27.
+Status: built and measured locally in headless Chrome with a fake microphone; not yet verified in Safari, with a real microphone, with headphones or on a headset. No Marble room yet. Live URL: none. Started 2026-10-27.
 
 **TL;DR.** Rehearse a job interview inside a generated room. A voice interviewer asks questions from your own question bank, follows up on what you said, and writes feedback after the session. The room is a 3D scene made once with World Labs Marble and viewed in the browser. The voice loop is built first and the room second, because the questions and the feedback carry the value.
 
@@ -79,10 +79,52 @@ $0 until the owner approves paid tools. Every step that can cost money is marked
 - Coaching during the interview. Feedback arrives after the session.
 - Storing question banks, recordings or generated room files in this repository.
 
+## Run it locally
+
+Checked on the owner's Mac. Other machines need the same pieces.
+
+Prerequisites:
+
+- Node (the repo is developed on Node 26) and npm.
+- whisper.cpp from Homebrew, with the `large-v3-turbo` ggml model file in `~/whisper.cpp/models` or `~/models` (or set `WHISPER_MODEL`).
+- llama.cpp (`llama-server`) and a local GGUF model. The default path is `~/models/gemma-4-E4B/gemma-4-E4B-it-Q8_0.gguf`; set `LOCAL_LLM_GGUF` to use another file.
+- `uv` and the Kokoro ONNX files (`kokoro-v1.0.onnx`, `voices-v1.0.bin`) in `~/models/kokoro`.
+
+Steps:
+
+```
+npm install
+cp .env.example .env
+npm run services     # starts the three local services that are not already running
+npm run dev          # app on 8940, server on 8941
+```
+
+Open http://localhost:8940.
+
+- `npm run services` starts the model on 8944, whisper on 8942 and Kokoro on 8943, writes logs to `media/logs/`, and prints one status line per service. `npm run services:stop` stops whatever is listening on those three ports.
+- Marble room: export the splat as SPZ and put it at `media/rooms/interview-office/room.spz`. The `media/` folder is ignored by git. Without the file the room screen shows a notice and runs on a flat backdrop.
+- Your own questions: set `QUESTION_BANK_DIR` in `.env` to the folder that holds your bank. The parser reads from there and copies nothing. The default is the invented sample bank in `banks/`.
+- Tests: `npm test`. Types and lint: `npm run typecheck` and `npm run lint`.
+- Headless check of a full session with a fake microphone (needs the services and the dev servers running): `node scripts/e2e-fake-mic.mjs`.
+
+## What is not verified yet
+
+From [docs/acceptance-results.md](docs/acceptance-results.md):
+
+- Safari. Only Chrome was run.
+- A session with a real microphone and a real speaker, including echo and the owner's real question bank.
+- The voice position, by listening with headphones.
+- Frame rate and load time on a real Marble room, because none exists yet.
+- The headset (WebXR) mode.
+
 ## Docs
 
 - [docs/spec.md](docs/spec.md): what the tool does, the data model, decisions, acceptance criteria.
 - [docs/implementation-plan.md](docs/implementation-plan.md): phases 0 to 5. Phases 0 and 1 are written step by step. Phases 2 to 5 are outlines to expand after the phase 0 results.
+- [docs/acceptance-results.md](docs/acceptance-results.md): results of the acceptance criteria from real local runs, with the failures stated.
+- [docs/phase-2-notes.md](docs/phase-2-notes.md), [docs/phase-3-notes.md](docs/phase-3-notes.md) and [docs/phase-4-notes.md](docs/phase-4-notes.md): what was built and checked in the voice loop, room and report phases.
+- [docs/quest-notes.md](docs/quest-notes.md): notes on the Quest 3 headset mode, from documentation only and untested on a headset.
+- [draft/unslop-notes.md](draft/unslop-notes.md): constraints and audit for the static draft.
 
 ## Repository rules
 
