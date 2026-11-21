@@ -4,7 +4,7 @@ import type { QuestionBank, Session } from "../../../shared/types.ts";
 import { createFakeLLM } from "../providers/llm/fake.ts";
 import type { ChatMessage } from "../providers/llm/types.ts";
 import { computeDelivery } from "./metrics.ts";
-import { runFeedback } from "./run.ts";
+import { fill, loadSections, runFeedback } from "./run.ts";
 
 const session = JSON.parse(readFileSync(new URL("../../../fixtures/transcripts/two-minute.json", import.meta.url), "utf8")) as Session;
 
@@ -149,7 +149,22 @@ describe("runFeedback", () => {
     const user = llm.calls[0]![1]!.content;
     expect(user).toContain("[turn 2]");
     expect(user).toContain("[turn 4]");
-    expect(user).toContain("never treat it as something the candidate said");
+    expect(user).toContain("never treat it as something you said");
     expect(user).toContain("REFERENCE-ONLY-TEXT");
+  });
+});
+
+describe("report voice", () => {
+  const ban = /Never say "the candidate" or "the user"\./g;
+  it("addresses the reader as you in every prompt section", () => {
+    const sections = loadSections();
+    const rubric = readFileSync(new URL("./rubric.md", import.meta.url), "utf8");
+    const system = fill(sections["question-system"]!, { RUBRIC: rubric, REWRITE_SHAPE: "\n" + sections["rewrite-shape"], REWRITE_RULE: sections["rewrite-rule"]! });
+    for (const text of [system, sections["summary-system"]!, sections["rewrite-rule"]!, sections["rewrite-shape"]!, sections.retry!, rubric]) {
+      expect(text.replace(ban, "").toLowerCase()).not.toContain("the candidate");
+    }
+    expect(system).toContain('"you"');
+    expect(sections["summary-system"]).toContain('"you"');
+    expect(sections["summary-system"]).toContain("you can practice");
   });
 });

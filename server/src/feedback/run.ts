@@ -27,7 +27,7 @@ export function createFeedbackLLM(env: Record<string, string | undefined> = proc
 export type FeedbackStage = "metrics" | "writing" | "verifying" | "retrying" | "done";
 type PerQuestion = FeedbackReport["perQuestion"][number];
 
-function loadSections(): Record<string, string> {
+export function loadSections(): Record<string, string> {
   const text = readFileSync(new URL("./prompt.md", import.meta.url), "utf8");
   const out: Record<string, string> = {};
   for (const part of text.split(/^<!-- section: (.+?) -->\n/m).slice(1).reduce<string[][]>((acc, v, i, a) => (i % 2 === 0 ? [...acc, [v, a[i + 1] ?? ""]] : acc), [])) {
@@ -35,7 +35,7 @@ function loadSections(): Record<string, string> {
   }
   return out;
 }
-const fill = (t: string, vars: Record<string, string>) => t.replace(/\{\{(\w+)\}\}/g, (_, k: string) => vars[k] ?? "");
+export const fill = (t: string, vars: Record<string, string>) => t.replace(/\{\{(\w+)\}\}/g, (_, k: string) => vars[k] ?? "");
 
 async function collect(llm: LLMProvider, messages: ChatMessage[]): Promise<string> {
   let out = "";
@@ -83,7 +83,7 @@ export async function runFeedback(args: {
   const groups = groupTurns(session, bank);
   if (groups.length === 0) {
     stage("done");
-    return { report: { sessionId: session.id, summary: "There was nothing to review: no candidate answers were recorded in this session.", perQuestion: [], delivery, nextDrill: [] }, warnings };
+    return { report: { sessionId: session.id, summary: "There was nothing to review: none of your answers were recorded in this session.", perQuestion: [], delivery, nextDrill: [] }, warnings };
   }
 
   const sections = loadSections();

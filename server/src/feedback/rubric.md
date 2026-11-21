@@ -10,7 +10,7 @@ Specificity: does the answer use real details?
 1. Only general claims. No names, numbers or examples.
 2. One or two details, but the key claims have no support.
 3. Most claims have a concrete detail such as a number, a tool or an action.
-4. Every key claim is backed by a concrete detail, and the candidate's own role is clear.
+4. Every key claim is backed by a concrete detail, and your own role is clear.
 
 Relevance: does the answer address what was asked?
 1. Mostly off the question.
