@@ -29,6 +29,9 @@ export function createLocalLLM(o: LocalLLMOptions): LLMProvider {
           // Gemma and similar models think by default and spend the whole budget on it. Servers that
           // do not know this field ignore it.
           chat_template_kwargs: { enable_thinking: false },
+          // llama-server keeps the evaluated prompt of the last request and reuses the part that matches
+          // (the persona and the start of the conversation), so only the new tokens are processed.
+          cache_prompt: true,
         }),
         signal: opts?.signal,
       });
