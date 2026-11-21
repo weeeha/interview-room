@@ -24,3 +24,10 @@ The owner said to take the recommended decision at each open choice and record i
 15. The older server test for silence turns was updated to the new two-step offer (`server/src/session.test.ts`, one test only). Reason: the behaviour change broke it, and the speed work does not touch that test.
 16. The scripted stand-in with a real bank reads the bank through a temporary symlink on a second server (port 8961) that is stopped afterwards. Reason: the bank is never copied and nothing from it is committed. Counts only are recorded.
 17. A quoted heading that lists alternate wordings as "A" / "B" keeps the first wording as the question. Reason: the scripted run with a real bank spoke two wordings run together with a stray quote mark, and 89 headings use that form. Headings with other stray quote marks (245 parsed texts) are left for the owner to confirm.
+
+## Postponed
+- Speed pass, capture clock offset: `startCapture` takes its time origin before the audio worklet has loaded, so end-of-speech times (and the AC-6 gap and AC-7 starts) are off by 50 to 470 ms per run. Needs: take the origin from the audio clock at the first chunk, then re-measure; this changes what the number measures, so the owner decides.
+- Speed pass, faster first TTS unit: Kokoro takes 0.7 to 1.2 s (more under load) for the first sentence. Needs: cut an opening clause as its own unit (touches the sentence splitter and the interviewer prompt, another agent's files), or a faster voice model, or caching bank questions (and rendering the next question while the candidate talks).
+- Speed pass, model first token (about 0.55 s): needs a shorter or reordered prompt so llama-server can reuse more of its cache (persona first, question after), or a smaller or faster model.
+- Speed pass, streaming STT: would remove the remaining wait for whisper when the speaker pauses for less than 550 ms; needs a streaming whisper build.
+- Speed pass, report earlier: start each question's feedback call as soon as that question is done during the session; needs a decision on sharing the model with the live interview.

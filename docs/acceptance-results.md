@@ -2,7 +2,7 @@
 
 Date of all runs: 2026-11-21. Mac: the owner's development Mac, headless Chrome 158 with a fake microphone, local services (Gemma 4 E4B Q8 on 8944, whisper large-v3-turbo on 8942, Kokoro on 8943), sample bank, neutral interviewer. Targets in `docs/spec.md` are untouched. Nothing here was tuned to pass.
 
-TL;DR: AC-6 fails its initial median target (3.2 s and 3.6 s against 2.5 s); the 95th percentile passed in one run (3.7 s) and missed by 35 ms in the other (4.035 s against 4.0 s). AC-13 fails (68.8 s against 60 s). AC-7, AC-8, AC-9, AC-14, AC-16 and AC-17 pass in the headless setup. AC-1, AC-2, AC-5, AC-18 and the real-input session need the owner.
+TL;DR after the speed pass (section "Where the gap goes"): AC-6 still FAILS its initial targets (median 3.38 s against 2.5 s, p95 4.23 s against 4.0 s); AC-13 now PASSES (36.8 s, was 68.8 s); AC-7 still passes (393 ms), AC-14 passes (29 of 29), no answer was cut off by the early transcription (0 truncated of 43 candidate turns checked). The text below this line is the state before the speed pass. TL;DR before: AC-6 fails its initial median target (3.2 s and 3.6 s against 2.5 s); the 95th percentile passed in one run (3.7 s) and missed by 35 ms in the other (4.035 s against 4.0 s). AC-13 fails (68.8 s against 60 s). AC-7, AC-8, AC-9, AC-14, AC-16 and AC-17 pass in the headless setup. AC-1, AC-2, AC-5, AC-18 and the real-input session need the owner.
 
 ## Results
 
@@ -13,15 +13,15 @@ TL;DR: AC-6 fails its initial median target (3.2 s and 3.6 s against 2.5 s); the
 | AC-3 Drag limited to `lookLimitDeg`, camera fixed | PASS | yaw stopped at +60 and -60, pitch at -30, position unchanged | Existing notes, `docs/phase-3-notes.md` (sample splat and unit tests). Not re-run here. | 2026-11-20 (notes) |
 | AC-4 Missing splat: notice and full voice loop | PASS | notice shown, backdrop `flat`, 22 candidate turns completed, session ended | Re-seen in run 1 below (page notice text read over DevTools) and in `docs/phase-3-notes.md`. | 2026-11-21 |
 | AC-5 Voice positioned toward the anchor | NOT MEASURED | none | Panner azimuth numbers exist in `docs/phase-3-notes.md`, but nobody listened with headphones. Needs the owner. | 2026-11-21 |
-| AC-6 Gap median 2.5 s or less, p95 4 s or less, 20 or more turns | FAIL against initial target | run 1: median 3230 ms, p95 3700 ms (n=21). run 4: median 3600 ms, p95 4035 ms (n=21) | Browser `gapMs` in `session.json`: first audible interviewer sample minus the candidate's detected end of speech, so it includes the 1200 ms end-of-speech window. See the split below. Headless, no real speaker. | 2026-11-21 |
-| AC-7 Interviewer audio stops within 500 ms of speech | PASS (headless) | 14 barge-ins, 213 to 399 ms, median about 383 ms | `endMs` of the interrupted turn minus the next candidate `startMs`, from the logs. Detail below. | 2026-11-21 |
+| AC-6 Gap median 2.5 s or less, p95 4 s or less, 20 or more turns | FAIL against initial target (after the speed pass: median 3380 ms, p95 4234 ms, n=21, load 6 to 15, peak sample 15.4). Before the speed pass: run 1 median 3230, p95 3700 (n=21); run 4 median 3600, p95 4035 (n=21). | after: median 3380 ms, p95 4234 ms (n=21, 0 interrupted) | Browser `gapMs` in `session.json`: first audible interviewer sample minus the candidate's detected end of speech, so it includes the 1200 ms end-of-speech window. Same script and options as before (`--answers 22 --turns 22 --gap-sec 16 --minutes 20`, plus `--max-sec 900`). Session 0mwqzzfiid4b8. Where the time goes: see "Where the gap goes". Headless, no real speaker. | 2026-11-21 |
+| AC-7 Interviewer audio stops within 500 ms of speech | PASS (headless) | after the speed pass: 6 barge-ins, 391 to 393 ms (session 0mwr0qzu4c266, load 21 falling to 11 after a spike to 92 at its start). Before: 14 barge-ins, 213 to 399 ms, median about 383 ms | `endMs` of the interrupted turn minus the next candidate `startMs`, from the logs (`--answers 8 --gap-sec 6`). Detail below. | 2026-11-21 |
 | AC-8 Prompt after 8 s, offer after 12 s more | PASS | prompt 8.74 s after the opening ended, offer 12.74 s after the prompt ended, repeated 3 times | Dedicated silent run (fake microphone with only silence), logged turn times. Detail below. | 2026-11-21 |
-| AC-9 10 min: 4 or more distinct questions, no repeat, 2 follow-ups at most, closing 9:00 to 11:00 | PASS | 7 distinct questions, 0 repeats, max 2 follow-ups per question, closing line at 9:08 (548.1 s) | Full session 0mwqucs2s22cd, 600 s target, sample bank. | 2026-11-21 |
+| AC-9 10 min: 4 or more distinct questions, no repeat, 2 follow-ups at most, closing 9:00 to 11:00 | PASS | 7 distinct questions, 0 repeats, max 2 follow-ups per question, closing line at 9:08 (548.1 s). Same counts again after the speed pass, session 0mwr0ue2o0847: 7 distinct, 0 repeats, max 2 follow-ups, closing at 548.0 s | Full session 0mwqucs2s22cd, 600 s target, sample bank. | 2026-11-21 |
 | AC-10 Follow-up refers to the claim in the answer | PASS (my reading) | 14 of 14 follow-ups refer to what was said; 13 of 14 pick a main claim, 1 picks a neighbouring detail | Read by me from session 0mwqucs2s22cd, table below. Earlier check in `docs/phase-2-notes.md`: 5 of 5 responsive, 2 of 5 on the exact planted claim. | 2026-11-21 |
 | AC-11 No invented fact about the candidate | NOT MEASURED against the real-input session | scripted session: 0 invented facts, 1 loose paraphrase | The spec asks for the owner's real-input session. I read all 14 follow-ups of the scripted session only. | 2026-11-21 |
 | AC-12 Bank parser reads the owner's format | PASS (unit tests) | `server/src/banks/parse.test.ts`, part of 208 passing tests | `npm test`. The real bank has not been loaded (it is the owner's local folder). | 2026-11-21 |
-| AC-13 Report ready within 60 s of ending a 10-min session | FAIL against initial target | 68.8 s | `report.json` modification time minus `endedAt` in `session.json`, session 0mwqucs2s22cd (same method as `docs/phase-4-notes.md`). Load 4.6 to 13.4. | 2026-11-21 |
-| AC-14 Every quote appears word for word in its turn | PASS | 27 of 27 verified, 0 marked unverified | `npx tsx scripts/verify-report.ts 0mwqucs2s22cd`. Earlier 14 of 14 in `docs/phase-4-notes.md`. The check proves the quote is real, not that the note is fair. | 2026-11-21 |
+| AC-13 Report ready within 60 s of ending a 10-min session | PASS after the speed pass: 36.8 s (before the speed pass: 68.8 s, FAIL) | 36.8 s | `report.json` modification time minus `endedAt` in `session.json`, session 0mwr0ue2o0847 (10 minute target, closing line at 548.0 s, 21 candidate turns, 7 questions, so 8 model calls). Same method as before. Load 11 to 15 while the report ran; the session itself had a spike to 93 minutes earlier, which only touched the interview part. The change: the 7 question calls run 3 at a time (`FEEDBACK_CONCURRENCY`, default 3) instead of one after another. See "Where the gap goes". | 2026-11-21 |
+| AC-14 Every quote appears word for word in its turn | PASS | 27 of 27 verified before the speed pass; 29 of 29 after (session 0mwr0ue2o0847), 0 marked unverified | `npx tsx scripts/verify-report.ts 0mwqucs2s22cd` (before) and `... 0mwr0ue2o0847` (after). Earlier 14 of 14 in `docs/phase-4-notes.md`. The check proves the quote is real, not that the note is fair. | 2026-11-21 |
 | AC-15 Delivery numbers match a hand count | PASS (unit test) | `test_metrics_match_hand_count` in `server/src/feedback/metrics.test.ts` | `npm test`: 26 files, 208 tests, all passed. | 2026-11-21 |
 | AC-16 No request leaves localhost with local providers | PASS for server and page; Chrome's own background traffic seen, see below | server sockets: only 127.0.0.1 ports 8942, 8943, 8944; page requests: only `localhost:8940` and `blob:` | `lsof` every second for the full 10-minute session, plus DevTools Network events. Detail below. Claude API clause not measured (paid, never enabled). | 2026-11-21 |
 | AC-17 Nothing under `media/` or `sessions/`, no `.env`, no real bank in git | PASS | the `git ls-files` command printed nothing | Also: no tracked file contains `InterviewPreparationsBot` or `/Users/nickv`. `runway` appears twice, both product mentions (`README.md:67`, `docs/spec.md:148`: "Runway GWM Worlds 2 ... no public API"), not bank text. | 2026-11-21 |
@@ -121,6 +121,41 @@ During the full 10-minute session (session 0mwqucs2s22cd) I listed `lsof -nP -i`
 - Chrome's own processes also held connections to Google address ranges (port 443 and 80) in the socket listing. These are not the page: the page's request list shows none. To check, I started the same Chrome with a blank page and no app, with its background networking, component updater, sync and pings switched off by flag, for 20 s: its network service still connected to 5 Google addresses. So the traffic comes from Chrome itself, not from the app. A blank Chrome profile cannot be made fully silent by flags in this setup, so "no connection from the Chrome process" is not shown, only "none from the app".
 - Limits: one-second sampling can miss a connection shorter than a second; the check covers the local-provider configuration only. The Claude API clause was not run (paid, never enabled).
 
+## Where the gap goes (speed pass, 2026-11-21)
+
+Tools: every reply turn now stores marks in `turn.stages` (server marks from the moment the request arrived, browser marks from the candidate's detected end of speech) and `scripts/stage-table.ts` prints the median per stage; `scripts/report-profile.ts` times the report pass on a saved session. A stage is the difference of two marks on one clock, so the browser and server clocks are never subtracted. Runs used a private copy of the server and the page (ports 8971 and 8970) so that file edits by other agents did not restart the server mid-run; the three model services were shared and the Mac was shared with other sessions (load swung from 6 to 93 during the day; runs below carry their load).
+
+AC-6 stages, median ms over 21 answered turns each (14 with a model call, 7 bank questions with none):
+
+| Stage | Speech ahead off (run b8, load 12 to 22) | Speech ahead on (the AC-6 run, load 6 to 15) |
+|---|---|---|
+| 1 end-of-speech wait and WAV encode | 1250 | 1464 |
+| 2 upload and request overhead | 5 | 4 |
+| 3 server queue and body parse | 2 | 1 |
+| 4 speech to text (time the turn waited) | 473 | 1 |
+| 5 after STT to first model token (0 for bank questions) | 380 | 536 |
+| 6 first token to first sentence done | 234 | 234 |
+| 7 text to speech until the audio line is sent | 1236 | 1094 |
+| 8 audio line on the wire to the page | 0 | -1 |
+| 9 fetch and decode in the browser | 8 | 8 |
+| 10 decoded to first audible sample | 0 | 0 |
+| gap, browser (median / p95) | 3352 / 5051 | 3380 / 4234 |
+
+Reading it:
+- Stages 8 to 10 (the browser) cost about 10 ms: fetch and decode start at the moment the audio line arrives and nothing else waits before playback. Nothing to gain there.
+- The early transcription removed the whole STT stage (473 ms to about 0): 22 of 22 answers in the AC-6 run used it. Stages 2 to 10 add up to 2338 ms without it and 1877 ms with it, a gain of about 460 ms. The two headline medians are equal (3352 and 3380) because stage 1 differs by 214 ms between the two runs. Stage 1 is the 1200 ms wait plus a per-run offset of 50 to 470 ms seen across all runs of the day (1250, 1428, 1450, 1464, 1674). My reading, not verified: the capture clock origin is taken before the audio worklet has loaded, so the end-of-speech time is a little early by however long that took, and the gap is overstated by the same amount. I did not change this, because it changes what the number measures; it is listed under Postponed in `docs/decisions-2026-11-21.md`.
+- What is left after the 1.2 s wait: model first token about 0.55 s (model turns only), first sentence 0.23 s, Kokoro 1.1 s for the first sentence (0.66 s in the first measurement of the day, 1.2 to 2.2 s whenever the Mac was loaded; Kokoro is CPU bound and runs on one thread). To reach a 2.5 s median the post-wait part has to fit in 1.3 s with the offset included, which needs a faster TTS first unit or a faster model, neither done here.
+- Other fixes tried: `cache_prompt: true` is sent on every chat request (llama-server's default is already on, so no measured change). Keep-alive HTTP is already what Node fetch does. The three providers are built once per request path, not per call. The first sentence is cut and sent to TTS as soon as its end is seen (splitter holds a final terminator for one more token, about 20 ms).
+
+Load labels of the runs behind the table: AC-6 run 6 to 15 (samples every 30 s, one at 15.4), run b8 12 to 22. An earlier pair of runs with the same code (speech ahead off 3674 / 5894 at load 16 to 36, on 4590 / 7779 at load 19 to 54) is not used: TTS alone ranged from 1.2 to 2.2 s there, and rule says timings above 25 are unproven.
+
+Early transcription safety: the server reuses an early transcript only when the final turn request carries exactly the same audio bytes (sha256). Truncated answers check (candidate transcript against the fixture answer it came from, word counts and last words): AC-6 run 0 of 22, the 10 minute session 0 of 21. Ratios below 1.00 (0.93 and 0.94) are numbers Whisper wrote as digits ("forty eight" as "48").
+
+Report (AC-13), model calls on the 10 minute session 0mwqucs2s22cd re-run by `scripts/report-profile.ts` (nothing written to `sessions/`): 8 calls (7 questions, 1 summary). Each question call takes 10 to 15 s (replies of 1300 to 2000 characters, so well under the 1500 token cap, which is not a cost: the cap only matters when a reply runs away), the summary 3.6 to 4.3 s. Before: the 7 question calls ran one after another, then the summary: 88.1 s and 74.3 s (load 35 to 40). llama-server has 4 slots (it reports `total_slots 4` and `n_ctx` 16384 shared), so no restart was needed to run calls in parallel. 3 at a time: 38.8 s and 55.2 s; 4 at a time: 37.8 s. Default set to 3. The summary cannot start before all questions are done, so the floor is about one question call plus the summary.
+
+## LLM service
+The service on 8944 was found down after a report profiling run (cause unknown; the machine was at load 40 to 90 and no log for it exists). I restarted it with `scripts/start-services.sh`, same model file, `-c 16384`; `-np 4` is now written into the script (the earlier server also ran 4 slots, llama-server's automatic default). It is up.
+
 ## Proposed revised targets (for the owner to accept or reject)
 
 These are proposals only. `docs/spec.md` is unchanged.
@@ -150,3 +185,5 @@ Highest 1-minute sample during a run: run 1 12.0, run 2 10.0, run 3 25.9, run 4 
 
 - `scripts/e2e-fake-mic.mjs`: new options `--answers N`, `--gap-sec S`, `--lead-sec S` (14 invented answer texts, cycling), and a list of the distinct hosts the page requested.
 - `scripts/acceptance-stats.ts`: prints the split of the gap and the stop times for one `session.json`.
+- `scripts/stage-table.ts`: per-stage medians from the `stages` marks of saved sessions. `scripts/report-profile.ts`: report pass timing per model call.
+- `scripts/e2e-fake-mic.mjs` run with `--query speculative=0` (with the page in debug mode) switches the early transcription off, to measure without it.
