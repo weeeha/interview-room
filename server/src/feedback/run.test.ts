@@ -1,10 +1,11 @@
 import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
-import type { QuestionBank, Session } from "../../../shared/types.ts";
+import type { FeedbackReport, QuestionBank, Session } from "../../../shared/types.ts";
 import { createFakeLLM } from "../providers/llm/fake.ts";
 import type { ChatMessage } from "../providers/llm/types.ts";
 import { computeDelivery } from "./metrics.ts";
 import { fill, loadSections, runFeedback } from "./run.ts";
+import { repairTurnIndexes, verifyQuotes } from "./verifyQuotes.ts";
 
 const session = JSON.parse(readFileSync(new URL("../../../fixtures/transcripts/two-minute.json", import.meta.url), "utf8")) as Session;
 
@@ -166,5 +167,64 @@ describe("report voice", () => {
     expect(system).toContain('"you"');
     expect(sections["summary-system"]).toContain('"you"');
     expect(sections["summary-system"]).toContain("you can practice");
+  });
+
+  it("test_feedback_wrong_turn_index_repaired_without_retry", async () => {
+    const good = responder();
+    const llm = createFakeLLM([], (m) => {
+      const r = good(m);
+      return m[0]!.content.includes("overall summary") ? r : r.replace('"turnIndex":2', '"turnIndex":1').replace('"turnIndex":6', '"turnIndex":5').replace('"turnIndex":8', '"turnIndex":7');
+    });
+    const { report, warnings } = await runFeedback({ session, bank, llm });
+    expect(llm.calls).toHaveLength(4);
+    expect(warnings).toEqual([]);
+    expect(report.perQuestion[0]!.strengths[0]!.turnIndex).toBe(2);
+    expect(report.perQuestion[0]!.strengths[0]!.quote).toBe(GOOD["q-migration"]!.quote);
+    expect(report.perQuestion[0]!.strengths[0]!.unverified).toBeUndefined();
+  });
+
+  it("test_feedback_prompt_lists_candidate_turn_numbers", async () => {
+    const llm = createFakeLLM([], responder());
+    await runFeedback({ session, bank, llm });
+    expect(llm.calls[0]![0]!.content).toContain("candidate turn numbers: 2, 4.");
+  });
+});
+
+describe("repairTurnIndexes", () => {
+  const mk = (turnIndex: number, quote: string, questionId = "q-migration"): FeedbackReport => ({
+    sessionId: "s",
+    summary: "",
+    delivery: computeDelivery(session.turns),
+    nextDrill: [],
+    perQuestion: [{ questionId, strengths: [{ note: "n", turnIndex, quote }], gaps: [], rubric: { structure: 1, specificity: 1, relevance: 1, concision: 1 } }],
+  });
+  const withTwin: Session = {
+    ...session,
+    turns: [...session.turns, { index: 10, role: "candidate", kind: "answer", questionId: "q-extra", text: "I wrote a script and checked a sample by hand again.", startMs: 0, endMs: 1 }],
+  };
+
+  it("test_repair_single_match_fixes_index", () => {
+    const r = repairTurnIndexes(mk(0, "my biggest strength is planning", "q-strength"), session);
+    expect(r.perQuestion[0]!.strengths[0]!.turnIndex).toBe(6);
+    expect(verifyQuotes(r, session).ok).toBe(true);
+  });
+  it("test_repair_ambiguous_resolved_by_question", () => {
+    const r = repairTurnIndexes(mk(0, "I wrote a script and checked a sample by hand"), withTwin);
+    expect(r.perQuestion[0]!.strengths[0]!.turnIndex).toBe(4);
+  });
+  it("test_repair_ambiguous_across_other_questions_stays_failed", () => {
+    const r = repairTurnIndexes(mk(0, "I wrote a script and checked a sample by hand", "q-growth"), withTwin);
+    expect(r.perQuestion[0]!.strengths[0]!.turnIndex).toBe(0);
+    expect(verifyQuotes(r, withTwin).ok).toBe(false);
+  });
+  it("test_repair_quote_found_nowhere_still_fails", () => {
+    const r = repairTurnIndexes(mk(2, "we finished in 2 weeks"), session);
+    expect(r.perQuestion[0]!.strengths[0]!.turnIndex).toBe(2);
+    expect(verifyQuotes(r, session).ok).toBe(false);
+  });
+  it("test_repair_interviewer_only_quote_still_fails", () => {
+    const r = repairTurnIndexes(mk(2, "What was the hardest part?"), session);
+    expect(r.perQuestion[0]!.strengths[0]!.turnIndex).toBe(2);
+    expect(verifyQuotes(r, session).ok).toBe(false);
   });
 });

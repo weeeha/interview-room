@@ -64,3 +64,30 @@ export function markUnverified(report: FeedbackReport, failures: QuoteFailure[])
     perQuestion: report.perQuestion.map((q) => ({ ...q, strengths: mark(q, "strengths"), gaps: mark(q, "gaps") })),
   };
 }
+
+/**
+ * Fix a wrong turnIndex when the quote is word for word in exactly one candidate turn
+ * (same normalization as verifyQuotes, no case folding). If several candidate turns match, the
+ * ones that belong to the same question decide. The quote text is never changed. Notes that
+ * stay ambiguous or unmatched are left alone, so verifyQuotes still fails them.
+ */
+export function repairTurnIndexes(report: FeedbackReport, session: Session): FeedbackReport {
+  const candidates = session.turns.filter((t) => t.role === "candidate").map((t) => ({ turn: t, text: normalize(t.text) }));
+  const fix = <N extends { turnIndex: number; quote: string }>(note: N, questionId: string): N => {
+    const quote = normalize(note.quote);
+    if (quote === "") return note;
+    const hits = candidates.filter((c) => c.text.includes(quote));
+    if (hits.some((h) => h.turn.index === note.turnIndex)) return note;
+    let pick = hits;
+    if (pick.length > 1) pick = pick.filter((h) => h.turn.questionId === questionId);
+    return pick.length === 1 ? { ...note, turnIndex: pick[0]!.turn.index } : note;
+  };
+  return {
+    ...report,
+    perQuestion: report.perQuestion.map((q) => ({
+      ...q,
+      strengths: q.strengths.map((n) => fix(n, q.questionId)),
+      gaps: q.gaps.map((n) => fix(n, q.questionId)),
+    })),
+  };
+}

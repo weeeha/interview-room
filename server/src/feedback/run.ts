@@ -10,7 +10,7 @@ import { createLocalLLM } from "../providers/llm/local.ts";
 import type { ChatMessage, LLMProvider } from "../providers/llm/types.ts";
 import { computeDelivery } from "./metrics.ts";
 import { checkQuestionOutput, checkSummaryOutput, extractJson, RUBRIC_KEYS, type Checked, type QuestionOutput } from "./schema.ts";
-import { markUnverified, verifyQuotes, type QuoteFailure } from "./verifyQuotes.ts";
+import { markUnverified, repairTurnIndexes, verifyQuotes, type QuoteFailure } from "./verifyQuotes.ts";
 
 /**
  * The provider for the feedback pass. The default local provider caps replies at 120 tokens, which
@@ -122,6 +122,7 @@ export async function runFeedback(args: {
     const wantRewrite = entry?.hasReferenceAnswer === true;
     const system = fill(sections["question-system"]!, {
       RUBRIC: rubric,
+      TURN_NUMBERS: g.candidateTurns.map((t) => t.index).join(", "),
       REWRITE_SHAPE: wantRewrite ? "\n" + sections["rewrite-shape"] : "",
       REWRITE_RULE: wantRewrite ? sections["rewrite-rule"]! : sections["no-rewrite-rule"]!,
     });
@@ -136,8 +137,12 @@ export async function runFeedback(args: {
       ...(wantRewrite && o.rewrite ? { rewrite: o.rewrite } : {}),
       rubric: o.rubric,
     });
+    // Repair first: a wrong turn number alone must not cost a second model call.
     const verify = (o: QuestionOutput): QuoteFailure[] => {
       stage("verifying");
+      const fixed = repairTurnIndexes({ sessionId: session.id, summary: "", perQuestion: [buildReport(o)], delivery, nextDrill: [] }, session).perQuestion[0]!;
+      o.strengths = fixed.strengths;
+      o.gaps = fixed.gaps;
       return verifyQuotes({ sessionId: session.id, summary: "", perQuestion: [buildReport(o)], delivery, nextDrill: [] }, session).failures;
     };
     const res = await ask(messages, (raw) => checkQuestionOutput(raw, { wantRewrite }), verify, describeFailures);
