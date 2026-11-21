@@ -7,7 +7,7 @@ import { createApp } from "../index.ts";
 import { createFakeLLM } from "../providers/llm/fake.ts";
 import { createFakeSTT } from "../providers/stt/fake.ts";
 import { createFakeTTS } from "../providers/tts/fake.ts";
-import { createFakeFeedbackLLM, createFeedbackService } from "./service.ts";
+import { createFakeFeedbackLLM, createFeedbackService, withQuestionIds } from "./service.ts";
 import { verifyQuotes } from "./verifyQuotes.ts";
 
 const fixture = JSON.parse(readFileSync(new URL("../../../fixtures/transcripts/two-minute.json", import.meta.url), "utf8")) as Session;
@@ -84,6 +84,17 @@ describe("feedback service", () => {
     expect((await svc.info(session.id)).reportStatus).toBe("ready");
     const fresh = createFeedbackService({ sessionsDir: dir, banksDir: "./banks", getLLM: createFakeFeedbackLLM });
     expect((await fresh.info(session.id)).reportStatus).toBe("ready");
+  });
+
+  it("test_candidate_turns_without_question_id_are_reviewed", async () => {
+    const stripped = ended({ turns: fixture.turns.map((t) => (t.role === "candidate" ? { ...t, questionId: undefined } : t)) });
+    expect(withQuestionIds(stripped).turns.filter((t) => t.role === "candidate").map((t) => t.questionId)).toEqual(["q-migration", "q-migration", "q-strength", "q-growth"]);
+    const dir = setup(stripped);
+    const svc = createFeedbackService({ sessionsDir: dir, banksDir: "./banks", getLLM: createFakeFeedbackLLM });
+    await svc.start(stripped);
+    const info = await svc.info(stripped.id);
+    expect(info.report?.perQuestion).toHaveLength(3);
+    expect(verifyQuotes(info.report as FeedbackReport, stripped).ok).toBe(true);
   });
 
   it("test_retry_refuses_running_session_and_unknown_ids", async () => {

@@ -57,6 +57,21 @@ export function createFakeFeedbackLLM(): LLMProvider {
   });
 }
 
+/**
+ * The session log leaves questionId off candidate turns. The feedback run groups turns by it, so a
+ * candidate turn takes the id of the nearest earlier turn that has one.
+ */
+export function withQuestionIds(session: Session): Session {
+  let current: string | undefined;
+  const turns = [...session.turns]
+    .sort((a, b) => a.index - b.index)
+    .map((t) => {
+      if (t.questionId) current = t.questionId;
+      return t.role === "candidate" && !t.questionId && current ? { ...t, questionId: current } : t;
+    });
+  return { ...session, turns };
+}
+
 async function writeJsonAtomic(path: string, value: unknown): Promise<void> {
   const tmp = `${path}.tmp`;
   await writeFile(tmp, JSON.stringify(value, null, 2));
@@ -97,13 +112,15 @@ export function createFeedbackService(opts: FeedbackServiceOptions) {
       try {
         const bank: QuestionBank = loadBanks(opts.banksDir).find((b) => b.id === session.bankId) ?? { id: session.bankId, title: session.bankId, sourcePath: "none", questions: [] };
         const { report, warnings } = await runFeedback({
-          session,
+          session: withQuestionIds(session),
           bank,
           llm: makeLLM(),
           onStage: (stage) => states.set(id, { ...(states.get(id) as State), status: "generating", stage }),
         });
+        // The question wording as the bank has it, kept beside each question for the report page.
+        const named = { ...report, perQuestion: report.perQuestion.map((p) => ({ ...p, questionText: bank.questions.find((q) => q.id === p.questionId)?.text })) };
         await mkdir(dirOf(id), { recursive: true });
-        await writeJsonAtomic(join(dirOf(id), "report.json"), report);
+        await writeJsonAtomic(join(dirOf(id), "report.json"), named);
         states.set(id, { status: "ready", ...(warnings.length ? { warnings } : {}) });
       } catch (e) {
         const message = e instanceof Error ? e.message : String(e);
