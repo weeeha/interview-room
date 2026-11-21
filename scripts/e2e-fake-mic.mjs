@@ -3,9 +3,14 @@
 // the microphone, drives the app over the DevTools protocol, and prints what happened.
 // Needs `npm run dev` running and the model services up. Chrome is muted, so nothing is audible.
 // Usage: node scripts/e2e-fake-mic.mjs [--app http://localhost:8940] [--minutes 5] [--turns 4] [--max-sec 240] [--query 'splat=<url>']
+//   [--answers 4] [--gap-sec 14] [--lead-sec 6]
+// --answers N makes the fake microphone play N invented answers (cycling through 14 texts), each followed by --gap-sec seconds of
+// silence, after --lead-sec seconds of silence. A short gap makes the next answer overlap the interviewer's reply (barge-in runs),
+// a long one lets the reply finish first. --answers 0 plays only silence (silence-prompt runs; pair it with --max-sec).
+// The run also lists every distinct host the page requested (CDP Network events), for the privacy check (AC-16).
 // --query adds extra query parameters to the session page (for example a sample splat in dev). The run prints the room notice
 // text and the backdrop mode the page showed, so a missing room file (AC-4) can be read from the output.
-/* global process, console, fetch, WebSocket, setTimeout */
+/* global process, console, fetch, WebSocket, setTimeout, URL */
 import { spawn, execFileSync } from "node:child_process";
 import { copyFileSync, existsSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
@@ -20,6 +25,9 @@ const LENGTH_MIN = Number(arg("minutes", "5"));
 const WANT_TURNS = Number(arg("turns", "4"));
 const MAX_SEC = Number(arg("max-sec", "240"));
 const EXTRA_QUERY = arg("query", "");
+const N_ANSWERS = Number(arg("answers", "4"));
+const GAP_SEC = Number(arg("gap-sec", "14"));
+const LEAD_SEC = Number(arg("lead-sec", "6"));
 const CHROME = "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome";
 const PORT = 9333;
 const root = resolve(import.meta.dirname, "..");
@@ -32,6 +40,16 @@ const ANSWERS = [
   "Last spring I disagreed with a developer about a signup form. He wanted five steps, I wanted two. Instead of arguing I ran a quick test with ten people on both versions. The short form finished faster, and he agreed to ship it, so we kept the five step version only for business accounts.",
   "When a deadline slipped, I listed every task that was left and asked the team which three mattered most to customers. We dropped two features and moved a third to the next release. We shipped on the new date and nobody had to work the weekend, which I count as a good outcome.",
   "I learn new tools by rebuilding something small that I already understand. Last year I picked up a prototyping tool by recreating the checkout screen from an old project. It took one evening, and the mistakes I made there taught me more than any tutorial did.",
+  "I led a redesign of a bakery ordering app. People abandoned the cart at the delivery slot step, so I cut the slot picker from three screens to one and tested it with seven customers. Completion went from forty eight to sixty six percent in a month.",
+  "The hardest part was the owner, who wanted a loyalty banner on every screen. I showed her a heat map where people tapped past it, and we agreed to keep it only on the confirmation page.",
+  "I start with the assumption that would hurt most if wrong. For the bakery it was that people knew their pickup time, so I designed the time picker first and the menu second.",
+  "I disagreed with an engineer who wanted to drop the loading state to save a week. I showed him recordings of people tapping twice without it, and we shipped a plain skeleton screen on the original date.",
+  "For quick tests I use five people and one task each. I watch for hesitation and I write the three biggest problems the same day, usually in a shared note with screenshots.",
+  "I pick the five from the last month of support tickets, so they have a real problem with the product. I skip anyone who works with the team.",
+  "With no budget I read support tickets and send a four question survey to existing customers. I say in the readout that it is a thin sample.",
+  "Research changed my plan once when interviews showed that most customers ordered for an office, not for themselves, so I moved the group order button to the top.",
+  "On a warehouse scanning app I found that gloves made the small buttons hard to hit, so I doubled the target size and the mistakes per shift fell from nine to three.",
+  "A new teammate once rewrote my component library in a weekend. I did not argue. I asked him to walk me through it, kept his naming, and we merged the two on Monday.",
 ];
 
 function run(cmd, args) {
@@ -40,7 +58,8 @@ function run(cmd, args) {
 
 function buildFakeMic() {
   mkdirSync(fixtures, { recursive: true });
-  const out = join(fixtures, "fake-mic-4-answers-48k.wav");
+  const isDefault = N_ANSWERS === 4 && GAP_SEC === 14 && LEAD_SEC === 6;
+  const out = join(fixtures, isDefault ? "fake-mic-4-answers-48k.wav" : `fake-mic-${N_ANSWERS}a-gap${GAP_SEC}-lead${LEAD_SEC}-48k.wav`);
   if (existsSync(out)) return out;
   const parts = [];
   const silence = (name, sec) => {
@@ -48,14 +67,19 @@ function buildFakeMic() {
     run("ffmpeg", ["-y", "-f", "lavfi", "-i", "anullsrc=r=48000:cl=mono", "-t", String(sec), "-c:a", "pcm_s16le", f]);
     return f;
   };
-  parts.push(silence("sil-lead.wav", 6));
-  ANSWERS.forEach((text, i) => {
-    const aiff = join(fixtures, `ans-${i + 1}.aiff`);
-    const wav = join(fixtures, `ans-${i + 1}.wav`);
-    run("say", ["-v", "Samantha", "-o", aiff, text]);
-    run("ffmpeg", ["-y", "-i", aiff, "-ar", "48000", "-ac", "1", "-c:a", "pcm_s16le", wav]);
-    parts.push(wav, silence(`sil-${i + 1}.wav`, 14));
-  });
+  parts.push(silence(`sil-lead-${LEAD_SEC}.wav`, LEAD_SEC));
+  if (N_ANSWERS === 0) parts.push(silence("sil-long-120.wav", 120));
+  for (let i = 0; i < N_ANSWERS; i++) {
+    const k = i % ANSWERS.length;
+    const text = ANSWERS[k];
+    const aiff = join(fixtures, `ans-${k + 1}.aiff`);
+    const wav = join(fixtures, `ans-${k + 1}.wav`);
+    if (!existsSync(wav)) {
+      run("say", ["-v", "Samantha", "-o", aiff, text]);
+      run("ffmpeg", ["-y", "-i", aiff, "-ar", "48000", "-ac", "1", "-c:a", "pcm_s16le", wav]);
+    }
+    parts.push(wav, silence(`sil-gap-${GAP_SEC}.wav`, GAP_SEC));
+  }
   const list = join(fixtures, "concat.txt");
   writeFileSync(list, parts.map((p) => `file '${p}'`).join("\n"));
   run("ffmpeg", ["-y", "-f", "concat", "-safe", "0", "-i", list, "-ar", "48000", "-ac", "1", "-c:a", "pcm_s16le", "-map_metadata", "-1", "-fflags", "+bitexact", "-flags:a", "+bitexact", out]);
@@ -123,7 +147,7 @@ if (window.speechSynthesis) {
 }
 `;
 
-const out = { sessionId: null, consoleErrors: [], notes: [] };
+const out = { sessionId: null, consoleErrors: [], notes: [], hosts: {} };
 let chrome = null;
 let profile = null;
 
@@ -180,6 +204,15 @@ async function main() {
   await cdp.send("Page.enable");
   await cdp.send("Runtime.enable");
   await cdp.send("Log.enable");
+  await cdp.send("Network.enable");
+  cdp.on((m) => {
+    if (m.method !== "Network.requestWillBeSent") return;
+    try {
+      const u = new URL(m.params.request.url);
+      const key = u.protocol === "data:" || u.protocol === "blob:" || u.protocol === "about:" ? `${u.protocol}` : u.host;
+      out.hosts[key] = (out.hosts[key] ?? 0) + 1;
+    } catch { /* ignore unparsable urls */ }
+  });
   await cdp.send("Page.addScriptToEvaluateOnNewDocument", { source: INIT_SCRIPT });
   await cdp.send("Page.navigate", { url: `${APP}/?debug=1` });
 
@@ -263,6 +296,7 @@ console.log(`room: ${JSON.stringify(out.room ?? {})}`);
 console.log(`candidate turns: ${turns.filter((t) => t.role === "candidate").length}`);
 console.log(`gap values (ms): ${JSON.stringify(gaps)} median ${sorted.length ? sorted[Math.floor(sorted.length / 2)] : "none"}`);
 console.log(`interrupted turns: ${JSON.stringify(turns.filter((t) => t.interrupted))}`);
+console.log(`request hosts seen by the page: ${JSON.stringify(out.hosts)}`);
 console.log(`console errors (${out.consoleErrors.length}):`);
 for (const e of out.consoleErrors) console.log(`  ${e}`);
 for (const n of out.notes) console.log(`note: ${n}`);
