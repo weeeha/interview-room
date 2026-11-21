@@ -3,6 +3,8 @@
  *
  * - The first `calibrationMs` set the noise floor (median RMS). No events are emitted meanwhile.
  * - Speech starts after `startMs` of continuous frames above the threshold.
+ * - A pause event comes once, after `pauseMs` of continuous frames below it (0 turns it off). It is only a hint
+ *   that the speaker may be done; speech can still resume, and the end still takes `endOfSpeechMs`.
  * - Speech ends after `endOfSpeechMs` of continuous frames below it.
  * - While the interviewer is speaking a higher threshold applies, so speaker echo is not heard as speech.
  */
@@ -11,11 +13,15 @@ export type VadEvent =
   /** atMs is the time the above-threshold run began. */
   | { type: "speechStart"; atMs: number }
   /** atMs is the time the silence began. detectedAtMs is when the end was decided. */
-  | { type: "speechEnd"; atMs: number; detectedAtMs: number };
+  | { type: "speechEnd"; atMs: number; detectedAtMs: number }
+  /** The silence has lasted `pauseMs` and speech has not ended yet. atMs is the time the silence began. */
+  | { type: "pause"; atMs: number; detectedAtMs: number };
 
 export type VadOptions = {
   startMs?: number;
   endOfSpeechMs?: number;
+  /** Silence after which a pause event is sent. Default 0 (never); the room sets it from SPECULATIVE_STT_MS (550). A value at or above endOfSpeechMs: never. */
+  pauseMs?: number;
   calibrationMs?: number;
   /** Threshold is the noise floor times this. */
   floorMultiplier?: number;
@@ -30,6 +36,7 @@ export type VadOptions = {
 const DEFAULTS: Required<VadOptions> = {
   startMs: 150,
   endOfSpeechMs: 1200,
+  pauseMs: 0,
   calibrationMs: 500,
   floorMultiplier: 3,
   minThreshold: 0.015,
@@ -47,6 +54,7 @@ export class Vad {
   private interviewerSpeaking = false;
   private runStart: number | null = null; // start of the current above-threshold run
   private silenceStart: number | null = null; // start of the current below-threshold run in speech
+  private pauseSent = false;
 
   constructor(opts: VadOptions = {}) {
     // Skip undefined values so an unset option keeps its default.
@@ -81,6 +89,7 @@ export class Vad {
     this._inSpeech = false;
     this.runStart = null;
     this.silenceStart = null;
+    this.pauseSent = false;
   }
 
   push(rms: number, tMs: number): VadEvent[] {
@@ -120,12 +129,18 @@ export class Vad {
 
     if (above) {
       this.silenceStart = null;
+      this.pauseSent = false;
     } else {
       this.silenceStart ??= tMs;
-      if (tMs - this.silenceStart >= this.o.endOfSpeechMs) {
+      const quiet = tMs - this.silenceStart;
+      if (quiet >= this.o.endOfSpeechMs) {
         events.push({ type: "speechEnd", atMs: this.silenceStart, detectedAtMs: tMs });
         this._inSpeech = false;
         this.silenceStart = null;
+        this.pauseSent = false;
+      } else if (!this.pauseSent && this.o.pauseMs > 0 && this.o.pauseMs < this.o.endOfSpeechMs && quiet >= this.o.pauseMs) {
+        this.pauseSent = true;
+        events.push({ type: "pause", atMs: this.silenceStart, detectedAtMs: tMs });
       }
     }
     return events;

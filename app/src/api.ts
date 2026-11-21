@@ -9,6 +9,8 @@ export type Health = {
   silencePromptSec?: number;
   silenceOfferSec?: number;
   endOfSpeechMs?: number;
+  /** Silence after which the audio so far is transcribed ahead of time. 0: off. */
+  speculativeSttMs?: number;
 };
 export type BankInfo = { id: string; title: string; questionCount: number };
 export type RoomInfo = { id: string; label: string; description?: string };
@@ -30,6 +32,8 @@ export type PrevInfo = {
   interruptStopMs?: number;
   /** Extra field: the part of the interviewer's text that was heard before an interruption. */
   spokenText?: string;
+  /** Profiling marks in ms after the end of the candidate's speech. */
+  clientStages?: Record<string, number>;
 };
 
 export type TurnKind = "start" | "answer" | "silence_prompt" | "silence_offer_next";
@@ -92,7 +96,7 @@ async function getJson<T>(url: string, signal?: AbortSignal): Promise<T> {
   return (await res.json()) as T;
 }
 
-export type ClientConfig = { silencePromptSec: number; silenceOfferSec: number; endOfSpeechMs: number };
+export type ClientConfig = { silencePromptSec: number; silenceOfferSec: number; endOfSpeechMs: number; speculativeSttMs: number };
 
 /** Health plus the silence and end-of-speech settings from /api/config, when the server has them. */
 export async function getHealth(signal?: AbortSignal): Promise<Health> {
@@ -205,4 +209,15 @@ export async function* streamTurn(sessionId: string, req: TurnRequest): AsyncGen
   });
   if (!res.body) throw new ApiError(res.status, "The server sent no stream.");
   for await (const line of parseNdjson(res.body)) yield line as TurnLine;
+}
+
+/**
+ * Send the audio so far for transcription before the end of speech is certain. The server keeps the
+ * transcript only for the exact same audio, so if speech goes on, the result is simply never used.
+ * Fire and forget: a failure costs nothing, the turn request transcribes as usual.
+ */
+export function transcribeAhead(sessionId: string, audio: Blob): void {
+  const form = new FormData();
+  form.append("audio", audio, "ahead.wav");
+  fetch(`/api/session/${encodeURIComponent(sessionId)}/transcribe-ahead`, { method: "POST", body: form }).catch(() => {});
 }

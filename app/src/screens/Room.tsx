@@ -2,7 +2,7 @@ import { sessionStartOnPerfClock } from "../session/clock.ts";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Link, useNavigate, useParams, useSearchParams } from "react-router-dom";
 import type { Room as RoomRecord } from "../../../shared/types";
-import { endSession, getHealth, getRooms, getSession, streamTurn, type Health, type SessionDetail } from "../api.ts";
+import { endSession, getHealth, getRooms, getSession, streamTurn, transcribeAhead, type Health, type SessionDetail } from "../api.ts";
 import { MicError, startCapture, type CaptureHandle } from "../audio/capture.ts";
 import { createPlayback, type Playback } from "../audio/playback.ts";
 import { createLoop, type Loop, type LoopSnapshot } from "../session/loop.ts";
@@ -341,6 +341,9 @@ export function Room() {
       const cap = await startCapture({
         sessionStartMs: startMsRef.current,
         endOfSpeechMs: health?.endOfSpeechMs,
+        // ?speculative=0 (with ?debug=1) switches the early transcription off, to measure without it.
+        pauseMs: debugParam && params.get("speculative") === "0" ? 0 : health?.speculativeSttMs,
+        onPause: (u) => loopRef.current?.onPause(u),
         onSpeechStart: (atMs) => loopRef.current?.onSpeechStart(atMs),
         onUtterance: (u) => loopRef.current?.onUtterance(u),
         onLevel: (l) => setLevel(Math.round(l * 5)),
@@ -358,7 +361,7 @@ export function Room() {
     } finally {
       setMicBusy(false);
     }
-  }, [health]);
+  }, [health, debugParam, params]);
 
   // Called from the Start or Resume click: audio needs a user gesture.
   const begin = useCallback(
@@ -380,7 +383,7 @@ export function Room() {
       startMsRef.current = startMs;
       kindRef.current = resume ? "silence_prompt" : "start";
       const loop = createLoop({
-        api: { streamTurn: (req) => streamTurn(id, req), endSession: (prev) => endSession(id, prev) },
+        api: { streamTurn: (req) => streamTurn(id, req), endSession: (prev) => endSession(id, prev), transcribeAhead: (audio) => transcribeAhead(id, audio) },
         playback,
         capture: { setInterviewerSpeaking: (on) => captureRef.current?.setInterviewerSpeaking(on) },
         tts: health?.providers.tts === "browser" ? "speech" : "audio",

@@ -127,4 +127,38 @@ describe("vad options", () => {
     const c = feed(vad, b.t, 1300, QUIET);
     expect([...b.events, ...c.events].map((e) => e.type)).toEqual(["speechStart", "speechEnd"]);
   });
+
+  it("test_vad_pause_event_once_after_550ms_of_silence", () => {
+    const { vad, t } = calibrated({ pauseMs: 550 });
+    const a = feed(vad, t, 1000, SPEECH);
+    const b = feed(vad, a.t, 520, QUIET);
+    expect(b.events).toEqual([]);
+    const c = feed(vad, b.t, 60, QUIET);
+    expect(c.events.map((e) => e.type)).toEqual(["pause"]);
+    expect(c.events[0]?.atMs).toBe(a.t);
+    const d = feed(vad, c.t, 400, QUIET);
+    expect(d.events).toEqual([]); // once per silence
+    const e = feed(vad, d.t, 400, QUIET);
+    expect(e.events.map((x) => x.type)).toEqual(["speechEnd"]);
+  });
+
+  it("test_vad_pause_can_come_again_after_speech_resumes", () => {
+    const { vad, t } = calibrated({ pauseMs: 550 });
+    const a = feed(vad, t, 1000, SPEECH);
+    const b = feed(vad, a.t, 700, QUIET);
+    const c = feed(vad, b.t, 300, SPEECH);
+    const d = feed(vad, c.t, 700, QUIET);
+    expect(b.events.map((x) => x.type)).toEqual(["pause"]);
+    expect(c.events).toEqual([]);
+    expect(d.events.map((x) => x.type)).toEqual(["pause"]);
+  });
+
+  it("test_vad_pause_off_by_default_when_zero_or_not_below_the_end_window", () => {
+    for (const pauseMs of [undefined, 0, 1200, 2000]) {
+      const { vad, t } = calibrated({ pauseMs });
+      const a = feed(vad, t, 1000, SPEECH);
+      const b = feed(vad, a.t, 1300, QUIET);
+      expect(b.events.map((x) => x.type)).toEqual(["speechEnd"]);
+    }
+  });
 });

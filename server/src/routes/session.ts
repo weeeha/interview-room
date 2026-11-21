@@ -3,7 +3,7 @@ import { Readable } from "node:stream";
 import { Hono } from "hono";
 import { HttpError, parsePrev, parseTurnMeta, type CreateSessionInput, type SessionService, type TurnLine } from "../session.ts";
 
-export type ClientConfig = { silencePromptSec: number; silenceOfferSec: number; endOfSpeechMs: number };
+export type ClientConfig = { silencePromptSec: number; silenceOfferSec: number; endOfSpeechMs: number; speculativeSttMs: number };
 
 function num(v: string | undefined, fallback: number): number {
   const n = Number(v);
@@ -15,6 +15,8 @@ export function clientConfig(env: NodeJS.ProcessEnv): ClientConfig {
     silencePromptSec: num(env.SILENCE_PROMPT_SEC, 8),
     silenceOfferSec: num(env.SILENCE_OFFER_SEC, 12),
     endOfSpeechMs: num(env.END_OF_SPEECH_MS, 1200),
+    // 0 turns the early transcription off. It only has an effect below END_OF_SPEECH_MS.
+    speculativeSttMs: env.SPECULATIVE_STT_MS === "0" ? 0 : num(env.SPECULATIVE_STT_MS, 550),
   };
 }
 
@@ -71,8 +73,23 @@ export function sessionRoutes(service: SessionService, env: NodeJS.ProcessEnv): 
     return new Response(body, { headers: { "content-type": "audio/wav", "cache-control": "no-store" } });
   });
 
+  app.post("/api/session/:id/transcribe-ahead", async (c) => {
+    let form: FormData;
+    try {
+      form = await c.req.formData();
+    } catch {
+      throw new HttpError(400, "Body must be multipart form data");
+    }
+    const audio = form.get("audio");
+    if (!audio || typeof audio === "string") throw new HttpError(400, "audio is required");
+    const wav = Buffer.from(await (audio as File).arrayBuffer());
+    await service.transcribeAhead(c.req.param("id"), wav);
+    return c.json({ ok: true }, 202);
+  });
+
   app.post("/api/session/:id/turn", async (c) => {
     const id = c.req.param("id");
+    const recvAt = Date.now();
     let form: FormData;
     try {
       form = await c.req.formData();
@@ -113,7 +130,7 @@ export function sessionRoutes(service: SessionService, env: NodeJS.ProcessEnv): 
           }
         };
         service
-          .runTurn(id, meta, wav, ac.signal, emit)
+          .runTurn(id, meta, wav, ac.signal, emit, recvAt)
           .catch((e) => emit({ type: "error", stage: "llm", message: e instanceof Error ? e.message : String(e) }))
           .finally(close);
       },

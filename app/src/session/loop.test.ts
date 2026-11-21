@@ -108,6 +108,7 @@ function setup(over: Partial<LoopOptions> = {}) {
   const speaking: boolean[] = [];
   const ended: number[] = [];
   const endPrev: Array<PrevInfo | undefined> = [];
+  const ahead: Blob[] = [];
   const loop = createLoop({
     api: {
       streamTurn(req) {
@@ -117,6 +118,9 @@ function setup(over: Partial<LoopOptions> = {}) {
       },
       async endSession(prev) {
         endPrev.push(prev);
+      },
+      transcribeAhead(audio) {
+        ahead.push(audio);
       },
     },
     playback: pb.api,
@@ -136,7 +140,7 @@ function setup(over: Partial<LoopOptions> = {}) {
     { type: "audio", turnIndex: index, sentenceIndex: 0, url: `/a/${index}.wav` },
     { type: "done", turnIndex: index, closing: closingFlag },
   ];
-  return { clock, pb, requests, speaking, ended, endPrev, loop, turn };
+  return { clock, pb, requests, speaking, ended, endPrev, ahead, loop, turn };
 }
 
 const wav = new Blob(["x"], { type: "audio/wav" });
@@ -374,5 +378,55 @@ describe("turn loop", () => {
     expect(t.pb.stops).toBe(1);
     expect(t.endPrev).toHaveLength(1);
     expect(t.ended).toHaveLength(1);
+  });
+
+  it("test_pause_sends_the_audio_ahead_but_not_when_muted_or_idle", async () => {
+    const t = setup();
+    t.loop.onPause({ wav }); // idle: nothing started yet
+    expect(t.ahead).toHaveLength(0);
+    t.loop.start();
+    await tick();
+    t.requests[0]!.stream.push(...t.turn(0, "First question."));
+    await tick();
+    t.pb.audible(0);
+    t.pb.finish();
+    t.loop.onPause({ wav });
+    expect(t.ahead).toEqual([wav]);
+    t.loop.setMuted(true);
+    t.loop.onPause({ wav });
+    expect(t.ahead).toHaveLength(1);
+  });
+
+  it("test_stage_marks_are_sent_with_the_next_request", async () => {
+    const t = setup();
+    t.loop.start();
+    await tick();
+    t.requests[0]!.stream.push(...t.turn(0, "First question."));
+    await tick();
+    t.pb.audible(0);
+    t.pb.finish();
+    // The candidate answers: speech ended 1200 ms before the utterance arrives.
+    t.clock.advance(5000);
+    const endMs = t.clock.now() - 1000 - 1200; // on the session clock
+    t.clock.advance(0);
+    t.loop.onUtterance({ wav, speechStartMs: endMs - 3000, speechEndMs: endMs });
+    await tick();
+    t.clock.advance(300);
+    t.requests[1]!.stream.push({ type: "transcript", turnIndex: 1, text: "I did this." });
+    await tick();
+    t.clock.advance(400);
+    t.requests[1]!.stream.push({ type: "sentence", turnIndex: 2, sentenceIndex: 0, text: "Tell me more." });
+    await tick();
+    t.clock.advance(200);
+    t.requests[1]!.stream.push({ type: "audio", turnIndex: 2, sentenceIndex: 0, url: "/a/2.wav" }, { type: "done", turnIndex: 2, closing: false });
+    await tick();
+    t.clock.advance(100);
+    t.pb.audible(2);
+    t.pb.finish();
+    t.clock.advance(8000);
+    await tick();
+    const prev = t.requests[2]!.req.meta.prev;
+    expect(prev?.turnIndex).toBe(2);
+    expect(prev?.clientStages).toMatchObject({ detectedMs: 1200, sentMs: 1200, firstLineMs: 1500, sentenceMs: 1900, audioLineMs: 2100, audibleMs: 2200 });
   });
 });

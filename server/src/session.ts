@@ -1,4 +1,4 @@
-import { randomBytes } from "node:crypto";
+import { createHash, randomBytes } from "node:crypto";
 import { existsSync } from "node:fs";
 import { mkdir, readFile, readdir, rename, writeFile } from "node:fs/promises";
 import { join, resolve } from "node:path";
@@ -32,6 +32,8 @@ export type PrevInfo = {
   interrupted?: boolean;
   /** Optional: the text actually spoken before playback stopped. */
   spokenText?: string;
+  /** Optional profiling marks measured in the browser, ms from the candidate's end of speech. */
+  clientStages?: Record<string, number>;
 };
 
 export type TurnMeta = {
@@ -78,6 +80,8 @@ type Entry = {
   profile: InterviewerProfile;
   timing: Timing;
   queue: Promise<unknown>;
+  /** Transcripts started before the turn request, keyed by a hash of the exact audio. */
+  ahead: Map<string, { result: Promise<{ text: string; ms: number }>; at: number }>;
 };
 
 // Latency fields are filled in as the data arrives, so some are missing for a while.
@@ -122,6 +126,14 @@ export function parsePrev(p: Record<string, unknown>): PrevInfo {
   }
   if (typeof p.interrupted === "boolean") prev.interrupted = p.interrupted;
   if (typeof p.spokenText === "string") prev.spokenText = p.spokenText;
+  if (p.clientStages && typeof p.clientStages === "object") {
+    const marks: Record<string, number> = {};
+    for (const [k, v] of Object.entries(p.clientStages as Record<string, unknown>)) {
+      const n = finite(v);
+      if (n !== undefined && /^[A-Za-z0-9]{1,24}$/.test(k) && Object.keys(marks).length < 16) marks[k] = Math.round(n);
+    }
+    if (Object.keys(marks).length > 0) prev.clientStages = marks;
+  }
   return prev;
 }
 
@@ -182,7 +194,7 @@ export function createSessionService(opts: SessionServiceOptions) {
       now: () => elapsed(session),
     });
     if (engineState) engine.restore(engineState);
-    return { session, engine, bank, profile, timing, queue: Promise.resolve() };
+    return { session, engine, bank, profile, timing, queue: Promise.resolve(), ahead: new Map() };
   }
 
   async function persist(entry: Entry): Promise<void> {
@@ -232,6 +244,7 @@ export function createSessionService(opts: SessionServiceOptions) {
     const lat = ((turn.latency ??= {} as Turn["latency"] & object) as PartialLatency);
     if (prev.gapMs !== undefined) lat.gapMs = prev.gapMs;
     if (prev.ttsFirstAudioMs !== undefined) lat.ttsFirstAudioMs = prev.ttsFirstAudioMs;
+    if (prev.clientStages) turn.stages = { ...turn.stages, client: prev.clientStages };
     // Stop and end times come from the browser, which counts from the session's startedAt. A turn
     // never ends before it starts: if the report says so, keep startMs and warn.
     const setEnd = (reported: number) => {
@@ -345,6 +358,27 @@ export function createSessionService(opts: SessionServiceOptions) {
     }
   }
 
+  const AHEAD_MAX = 3;
+  const AHEAD_TTL_MS = 120_000;
+  const audioKey = (wav: Buffer) => createHash("sha256").update(wav).digest("hex");
+
+  /**
+   * Starts transcribing audio the browser sent at a pause. It is used only when the turn request later
+   * carries exactly the same bytes, so a speaker who went on talking is never answered from a stale text.
+   */
+  async function transcribeAhead(id: string, wav: Buffer): Promise<void> {
+    const entry = await getEntry(id);
+    if (entry.session.status === "ended" || entry.session.status === "reported" || wav.length === 0) return;
+    const key = audioKey(wav);
+    if (entry.ahead.has(key)) return;
+    const t = clock();
+    for (const [k, v] of entry.ahead) if (t - v.at > AHEAD_TTL_MS) entry.ahead.delete(k);
+    while (entry.ahead.size >= AHEAD_MAX) entry.ahead.delete(entry.ahead.keys().next().value as string);
+    const result = opts.getProviders().stt.transcribe(wav);
+    result.catch(() => undefined); // a failure here is seen again by the turn, which transcribes on its own
+    entry.ahead.set(key, { result, at: t });
+  }
+
   /** Checks that can fail before a response stream starts. */
   async function checkTurn(id: string, meta: TurnMeta, wav?: Buffer): Promise<void> {
     const entry = await getEntry(id);
@@ -360,9 +394,11 @@ export function createSessionService(opts: SessionServiceOptions) {
     wav: Buffer | undefined,
     signal: AbortSignal,
     emit: (line: TurnLine) => void,
+    /** Wall clock ms when the request reached the server. Profiling only. */
+    recvAt: number = clock(),
   ): Promise<void> {
     const entry = await getEntry(id);
-    return enqueue(entry, () => processTurn(entry, meta, wav, signal, emit));
+    return enqueue(entry, () => processTurn(entry, meta, wav, signal, emit, recvAt));
   }
 
   async function processTurn(
@@ -371,8 +407,13 @@ export function createSessionService(opts: SessionServiceOptions) {
     wav: Buffer | undefined,
     signal: AbortSignal,
     emit: (line: TurnLine) => void,
+    recvAt: number,
   ): Promise<void> {
     const { session, engine, profile } = entry;
+    const stages: Record<string, number> = { startMs: Math.max(0, clock() - recvAt) };
+    const mark = (name: string) => {
+      stages[name] ??= Math.max(0, clock() - recvAt);
+    };
     const providers = opts.getProviders();
     const dir = dirOf(session.id);
     applyPrev(entry, meta.prev);
@@ -395,7 +436,19 @@ export function createSessionService(opts: SessionServiceOptions) {
       if (meta.kind === "answer") {
         let result: { text: string; ms: number };
         try {
-          result = await providers.stt.transcribe(wav as Buffer);
+          const key = audioKey(wav as Buffer);
+          const early = entry.ahead.get(key);
+          entry.ahead.clear();
+          let used: { text: string; ms: number } | undefined;
+          if (early) {
+            try {
+              used = await early.result;
+              stages.sttAhead = 1;
+            } catch {
+              used = undefined; // the early try failed: transcribe again below
+            }
+          }
+          result = used ?? (await providers.stt.transcribe(wav as Buffer));
         } catch (e) {
           emit({ type: "error", stage: "stt", message: errMsg(e) });
           await persist(entry);
@@ -403,6 +456,7 @@ export function createSessionService(opts: SessionServiceOptions) {
         }
         const text = result.text.trim();
         sttMs = result.ms;
+        mark("sttDoneMs");
         const candIdx = session.turns.length;
         emit({ type: "transcript", turnIndex: candIdx, text, sttMs });
         if (!text) {
@@ -451,6 +505,7 @@ export function createSessionService(opts: SessionServiceOptions) {
           const file = `turn-${pad2(turnIndex)}-s${sentenceIndex}.wav`;
           await mkdir(join(dir, "audio"), { recursive: true });
           await writeFile(join(dir, "audio", file), out.wav);
+          mark("audioLineMs");
           if (firstAudioMs === undefined) {
             firstAudioMs = clock() - (firstSentenceAt ?? clock());
             firstAudioPath = `audio/${file}`;
@@ -467,6 +522,7 @@ export function createSessionService(opts: SessionServiceOptions) {
           const sentenceIndex = produced.length;
           produced.push(s);
           firstSentenceAt ??= clock();
+          mark("firstSentenceMs");
           emit({ type: "sentence", turnIndex, sentenceIndex, text: s.text, kind: s.kind });
           ttsChain = ttsChain.then(synth(s, sentenceIndex));
         }
@@ -482,6 +538,7 @@ export function createSessionService(opts: SessionServiceOptions) {
       const appendInterviewerTurn = () => {
         const last = produced[produced.length - 1] as EngineSentence;
         const qid = [...produced].reverse().find((s) => s.questionId)?.questionId;
+        if (entry.timing.first !== undefined) stages.llmFirstTokenMs = entry.timing.mark - recvAt + entry.timing.first;
         const latency: PartialLatency = { llmFirstTokenMs: entry.timing.first ?? 0 };
         if (sttMs !== undefined) latency.sttMs = sttMs;
         if (firstAudioMs !== undefined) latency.ttsFirstAudioMs = firstAudioMs;
@@ -495,6 +552,7 @@ export function createSessionService(opts: SessionServiceOptions) {
           startMs,
           endMs: elapsed(session),
           latency: latency as Turn["latency"],
+          stages: { server: stages },
         });
       };
 
@@ -550,7 +608,7 @@ export function createSessionService(opts: SessionServiceOptions) {
     return existsSync(p) ? p : undefined;
   }
 
-  return { create, get, list, end, checkTurn, runTurn, audioPath, sessionsDir };
+  return { create, get, list, end, checkTurn, runTurn, transcribeAhead, audioPath, sessionsDir };
 }
 
 export type SessionService = ReturnType<typeof createSessionService>;

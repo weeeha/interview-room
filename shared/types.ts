@@ -62,6 +62,8 @@ export type Turn = {
   startMs: number; // since session start
   endMs: number;
   latency?: { sttMs: number; llmFirstTokenMs: number; ttsFirstAudioMs: number; gapMs: number };
+  /** Profiling marks for a reply, in ms. `server` counts from the moment the turn request arrived, `client` from the candidate's detected end of speech. */
+  stages?: { server?: Record<string, number>; client?: Record<string, number> };
   interrupted?: boolean;
 };
 

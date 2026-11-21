@@ -46,6 +46,8 @@ export type LoopSnapshot = {
 export type LoopApi = {
   streamTurn(req: TurnRequest): AsyncIterable<TurnLine>;
   endSession(prev?: PrevInfo): Promise<void>;
+  /** Optional: start transcribing the audio so far at a pause. Never awaited, failures ignored. */
+  transcribeAhead?(audio: Blob): void;
 };
 
 export type LoopOptions = {
@@ -72,6 +74,8 @@ export type Loop = {
   start(kind?: "start" | "silence_prompt"): void;
   onSpeechStart(atMs: number): void;
   onUtterance(u: Pick<CapturedUtterance, "wav" | "speechStartMs" | "speechEndMs">): void;
+  /** A pause inside an utterance: the audio so far may be the whole answer. */
+  onPause(u: Pick<CapturedUtterance, "wav">): void;
   setMuted(on: boolean): void;
   retry(): void;
   end(): Promise<void>;
@@ -89,6 +93,9 @@ type TurnRecord = {
   audibleAt?: number;
   gapMs?: number;
   ttsFirstAudioMs?: number;
+  /** Profiling marks on the `now` clock; reported as ms after the end of the candidate's speech. */
+  marks: { detectedAt?: number; sentAt?: number; firstLineAt?: number; audioLineAt?: number };
+  decodedAt?: number;
 };
 
 type Pending = { meta: TurnMeta; audio?: Blob };
@@ -128,11 +135,13 @@ export function createLoop(o: LoopOptions): Loop {
   let disposed = false;
   let ending = false;
   let retryEnd = false;
+  let detectedAt: number | null = null; // when the capture handed over the last utterance
 
   const unsubscribers = [
-    o.playback.onStart(({ atMs }) => {
+    o.playback.onStart(({ atMs, decodedAtMs }) => {
       if (!cur || cur.audibleAt !== undefined) return;
       cur.audibleAt = atMs;
+      cur.decodedAt = decodedAtMs;
       if (cur.answerEndMs !== undefined) {
         cur.gapMs = Math.max(0, Math.round(rel(atMs) - cur.answerEndMs));
         set({ lastGapMs: cur.gapMs });
@@ -185,9 +194,29 @@ export function createLoop(o: LoopOptions): Loop {
   function interviewerRecord(extra: Partial<PrevInfo> = {}): PrevInfo | null {
     if (!cur || cur.turnIndex < 0) return null;
     const info: PrevInfo = { turnIndex: cur.turnIndex, playbackEndMs: Math.round(rel(o.now())), ...extra };
+    const stages = clientStages(cur);
+    if (stages) info.clientStages = stages;
     if (cur.gapMs !== undefined) info.gapMs = cur.gapMs;
     if (cur.ttsFirstAudioMs !== undefined) info.ttsFirstAudioMs = cur.ttsFirstAudioMs;
     return info;
+  }
+
+  /** Where the gap went in the browser, ms after the end of the candidate's speech. Only for answered turns. */
+  function clientStages(c: TurnRecord): Record<string, number> | undefined {
+    if (c.answerEndMs === undefined) return undefined;
+    const at = (t: number | undefined) => (t === undefined ? undefined : Math.round(rel(t) - (c.answerEndMs as number)));
+    const out: Record<string, number> = {};
+    const put = (k: string, v: number | undefined) => {
+      if (v !== undefined) out[k] = v;
+    };
+    put("detectedMs", at(c.marks.detectedAt));
+    put("sentMs", at(c.marks.sentAt));
+    put("firstLineMs", at(c.marks.firstLineAt));
+    put("sentenceMs", at(c.firstSentenceAt));
+    put("audioLineMs", at(c.marks.audioLineAt));
+    put("decodedMs", at(c.decodedAt));
+    put("audibleMs", at(c.audibleAt));
+    return Object.keys(out).length ? out : undefined;
   }
 
   function maybeFinished() {
@@ -214,6 +243,10 @@ export function createLoop(o: LoopOptions): Loop {
   }
 
   function handle(line: TurnLine) {
+    if (cur) {
+      cur.marks.firstLineAt ??= o.now();
+      if (line.type === "audio") cur.marks.audioLineAt ??= o.now();
+    }
     switch (line.type) {
       case "transcript":
         if (line.text.trim() === "") emptyTranscript = true; // nothing heard: the stream ends with no done line
@@ -268,7 +301,8 @@ export function createLoop(o: LoopOptions): Loop {
     turnFinished = false;
     emptyTranscript = false;
     held = [];
-    cur = { turnIndex: -1, answerEndMs: p.meta.kind === "answer" ? p.meta.speechEndMs : undefined };
+    cur = { turnIndex: -1, answerEndMs: p.meta.kind === "answer" ? p.meta.speechEndMs : undefined, marks: { detectedAt: detectedAt ?? undefined, sentAt: o.now() } };
+    detectedAt = null;
     set({ phase: "thinking", error: null });
     try {
       for await (const line of o.api.streamTurn({ meta: p.meta, audio: p.audio, signal: c.signal })) {
@@ -347,7 +381,17 @@ export function createLoop(o: LoopOptions): Loop {
       cancelTimer();
       if (streaming || o.playback.isPlaying()) bargeIn(u.speechStartMs);
       set({ candidateCaption: "", silenceStage: 0 });
+      detectedAt = o.now();
       void run(buildRequest("answer", u));
+    },
+
+    onPause(u) {
+      if (disposed || ending || muted || snap.phase === "idle" || snap.phase === "error") return;
+      try {
+        o.api.transcribeAhead?.(u.wav);
+      } catch {
+        // an early transcript is only a speed-up
+      }
     },
 
     setMuted(on) {

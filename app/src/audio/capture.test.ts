@@ -4,16 +4,17 @@ import { CapturePipeline, type CapturedUtterance } from "./capture.ts";
 const RATE = 48000;
 const CHUNK = 512;
 
-function make(extra: { offsetMs?: number } = {}) {
+function make(extra: { offsetMs?: number; pauseMs?: number } = {}) {
   const got: CapturedUtterance[] = [];
+  const paused: CapturedUtterance[] = [];
   const starts: number[] = [];
   const levels: number[] = [];
   const p = new CapturePipeline(
     RATE,
-    { onUtterance: (u) => got.push(u), onSpeechStart: (t) => starts.push(t), onLevel: (l) => levels.push(l) },
+    { onUtterance: (u) => got.push(u), onPause: (u) => paused.push(u), onSpeechStart: (t) => starts.push(t), onLevel: (l) => levels.push(l) },
     extra,
   );
-  return { p, got, starts, levels };
+  return { p, got, paused, starts, levels };
 }
 
 /** Feed `ms` of a 200 Hz tone (amp) or quiet noise. */
@@ -85,5 +86,44 @@ describe("capture pipeline", () => {
     play(p, 500, 0.2);
     expect(Math.max(...levels)).toBeGreaterThan(quiet + 0.3);
     expect(Math.max(...levels)).toBeLessThanOrEqual(1);
+  });
+
+  it("test_capture_pause_audio_is_byte_identical_to_the_final_utterance", async () => {
+    const { p, got, paused } = make({ pauseMs: 550 });
+    play(p, 1000, 0.002);
+    play(p, 2000, 0.2);
+    play(p, 700, 0.002); // past the 550 ms pause, not yet the 1200 ms end
+    expect(paused).toHaveLength(1);
+    expect(got).toHaveLength(0);
+    play(p, 800, 0.002);
+    expect(got).toHaveLength(1);
+    const a = new Uint8Array(await (paused[0] as CapturedUtterance).wav.arrayBuffer());
+    const b = new Uint8Array(await (got[0] as CapturedUtterance).wav.arrayBuffer());
+    expect(a.length).toBe(b.length);
+    expect(Buffer.from(a).equals(Buffer.from(b))).toBe(true);
+    expect((paused[0] as CapturedUtterance).speechEndMs).toBe((got[0] as CapturedUtterance).speechEndMs);
+  });
+
+  it("test_capture_pause_audio_differs_when_speech_goes_on", async () => {
+    const { p, got, paused } = make({ pauseMs: 550 });
+    play(p, 1000, 0.002);
+    play(p, 1500, 0.2);
+    play(p, 700, 0.002);
+    play(p, 1500, 0.2); // the speaker was only thinking
+    play(p, 1500, 0.002);
+    expect(paused).toHaveLength(2); // one per silence
+    expect(got).toHaveLength(1);
+    const a = (paused[0] as CapturedUtterance).wav.size;
+    const b = (got[0] as CapturedUtterance).wav.size;
+    expect(b).toBeGreaterThan(a + 16000);
+  });
+
+  it("test_capture_no_pause_event_when_off_or_by_default", () => {
+    const { p, got, paused } = make();
+    play(p, 1000, 0.002);
+    play(p, 1500, 0.2);
+    play(p, 1500, 0.002);
+    expect(paused).toHaveLength(0);
+    expect(got).toHaveLength(1);
   });
 });

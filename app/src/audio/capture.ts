@@ -14,9 +14,16 @@ export type CapturedUtterance = {
 export type CaptureOptions = {
   /** Silence that ends an utterance. Default 1200 (the END_OF_SPEECH_MS setting). */
   endOfSpeechMs?: number;
+  /** Silence after which `onPause` is called. Default 0 (off); the room passes 550 from the server setting. */
+  pauseMs?: number;
   /** performance.now() value that counts as time zero for the reported ms. Default: when capture starts. */
   sessionStartMs?: number;
   onUtterance: (u: CapturedUtterance) => void;
+  /**
+   * Called once when a pause (the VAD's `pauseMs`, about 550 ms) has gone by inside an utterance, with the audio up to
+   * the start of that silence. If the silence lasts until the end of speech, `onUtterance` gets the same audio.
+   */
+  onPause?: (u: CapturedUtterance) => void;
   /** Called when speech is first detected, with ms since the session start. */
   onSpeechStart?: (atMs: number) => void;
   /** Called with the smoothed mic level (0 to 1) about 20 times a second. */
@@ -70,12 +77,13 @@ export class CapturePipeline {
     private sampleRate: number,
     private handlers: {
       onUtterance: (u: CapturedUtterance) => void;
+      onPause?: (u: CapturedUtterance) => void;
       onSpeechStart?: (atMs: number) => void;
       onLevel?: (level: number) => void;
     },
-    opts: { endOfSpeechMs?: number; offsetMs?: number; vad?: VadOptions } = {},
+    opts: { endOfSpeechMs?: number; pauseMs?: number; offsetMs?: number; vad?: VadOptions } = {},
   ) {
-    this.vad = new Vad({ endOfSpeechMs: opts.endOfSpeechMs, ...opts.vad });
+    this.vad = new Vad({ endOfSpeechMs: opts.endOfSpeechMs, pauseMs: opts.pauseMs, ...opts.vad });
     this.offsetMs = opts.offsetMs ?? 0;
   }
 
@@ -129,6 +137,11 @@ export class CapturePipeline {
         this.startMs = ev.atMs;
         this.utterance = this.ring.filter((c) => c.t0 + this.chunkMs(c) > ev.atMs - PRE_ROLL_MS);
         this.handlers.onSpeechStart?.(ev.atMs + this.offsetMs);
+      } else if (ev.type === "pause") {
+        if (this.recording && this.handlers.onPause) {
+          const u = this.build(this.utterance, ev.atMs);
+          if (u) this.handlers.onPause(u);
+        }
       } else if (this.recording) {
         this.finish(ev.atMs);
       }
@@ -151,7 +164,13 @@ export class CapturePipeline {
     this.utterance = [];
     this.recording = false;
     this.ring = [];
-    if (chunks.length === 0) return;
+    const u = this.build(chunks, silenceStartMs);
+    if (u) this.handlers.onUtterance(u);
+  }
+
+  /** The utterance from `chunks`, cut 300 ms after `silenceStartMs`. Does not change any state. */
+  private build(chunks: Chunk[], silenceStartMs: number): CapturedUtterance | null {
+    if (chunks.length === 0) return null;
     const first = (chunks[0] as Chunk).t0;
     const total = chunks.reduce((n, c) => n + c.samples.length, 0);
     const all = new Float32Array(total);
@@ -162,11 +181,11 @@ export class CapturePipeline {
     }
     const endIndex = Math.min(total, Math.max(0, Math.round(((silenceStartMs + TAIL_MS - first) / 1000) * this.sampleRate)));
     const pcm = resampleTo16k(all.subarray(0, endIndex), this.sampleRate);
-    this.handlers.onUtterance({
+    return {
       wav: new Blob([encodeWav16(pcm)], { type: "audio/wav" }),
       speechStartMs: this.startMs + this.offsetMs,
       speechEndMs: silenceStartMs + this.offsetMs,
-    });
+    };
   }
 }
 
@@ -214,6 +233,7 @@ export async function startCapture(opts: CaptureOptions): Promise<CaptureHandle>
   const sessionStart = opts.sessionStartMs ?? now;
   const pipeline = new CapturePipeline(ctx.sampleRate, opts, {
     endOfSpeechMs: opts.endOfSpeechMs,
+    pauseMs: opts.pauseMs,
     offsetMs: now - sessionStart,
     vad: opts.vad,
   });

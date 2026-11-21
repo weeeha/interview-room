@@ -34,7 +34,7 @@ export type PlaybackOptions = {
 export type Playback = {
   enqueue(item: PlaybackItem): void;
   stop(): StopResult;
-  onStart(cb: (e: { turnIndex: number; atMs: number }) => void): () => void;
+  onStart(cb: (e: { turnIndex: number; atMs: number; enqueuedAtMs?: number; decodedAtMs?: number }) => void): () => void;
   onSentenceStart(cb: (e: SentenceInfo) => void): () => void;
   onIdle(cb: () => void): () => void;
   level(): number;
@@ -88,7 +88,7 @@ export function pickVoice(voices: SpeechSynthesisVoice[]): SpeechSynthesisVoice 
   return en.find((v) => /^en[-_]US/i.test(v.lang)) ?? en[0];
 }
 
-type Entry = { item: PlaybackItem; decoded: Promise<AudioBuffer | null> };
+type Entry = { item: PlaybackItem; decoded: Promise<AudioBuffer | null>; enqueuedAtMs: number; decodedAtMs?: number };
 type Active = { item: PlaybackItem; kind: "audio" | "speech"; startedAt: number; durationMs: number; boundaryFraction?: number; source?: AudioBufferSourceNode };
 
 export function createPlayback(opts: PlaybackOptions): Playback {
@@ -105,7 +105,7 @@ export function createPlayback(opts: PlaybackOptions): Playback {
   gain.connect(analyser);
   const scratch = new Uint8Array(analyser.fftSize);
 
-  const startCbs = new Set<(e: { turnIndex: number; atMs: number }) => void>();
+  const startCbs = new Set<(e: { turnIndex: number; atMs: number; enqueuedAtMs?: number; decodedAtMs?: number }) => void>();
   const sentenceCbs = new Set<(e: SentenceInfo) => void>();
   const idleCbs = new Set<() => void>();
 
@@ -153,15 +153,16 @@ export function createPlayback(opts: PlaybackOptions): Playback {
     return voice;
   }
 
-  function markStart(item: PlaybackItem) {
+  function markStart(item: PlaybackItem, entry?: Entry) {
     if (item.turnIndex !== lastStartedTurn) {
       lastStartedTurn = item.turnIndex;
-      for (const cb of startCbs) cb({ turnIndex: item.turnIndex, atMs: now() });
+      for (const cb of startCbs) cb({ turnIndex: item.turnIndex, atMs: now(), enqueuedAtMs: entry?.enqueuedAtMs, decodedAtMs: entry?.decodedAtMs });
     }
     for (const cb of sentenceCbs) cb({ turnIndex: item.turnIndex, sentenceIndex: item.sentenceIndex, text: item.text });
   }
 
-  function playBuffer(item: PlaybackItem, buf: AudioBuffer, gen: number): Promise<void> {
+  function playBuffer(entry: Entry, buf: AudioBuffer, gen: number): Promise<void> {
+    const item = entry.item;
     return new Promise((resolve) => {
       const source = ctx.createBufferSource();
       source.buffer = buf;
@@ -181,7 +182,7 @@ export function createPlayback(opts: PlaybackOptions): Playback {
       source.onended = finish;
       if (ctx.state === "suspended") void ctx.resume();
       source.start();
-      markStart(item);
+      markStart(item, entry);
     });
   }
 
@@ -247,7 +248,7 @@ export function createPlayback(opts: PlaybackOptions): Playback {
         const buf = entry.item.url ? await entry.decoded : null;
         loading = false;
         if (gen !== generation) return;
-        if (buf) await playBuffer(entry.item, buf, gen);
+        if (buf) await playBuffer(entry, buf, gen);
         else await speakItem(entry.item, gen); // no url, or the audio failed to load
       }
     } finally {
@@ -263,7 +264,14 @@ export function createPlayback(opts: PlaybackOptions): Playback {
 
   return {
     enqueue(item) {
-      queue.push({ item, decoded: item.url ? decode(item.url) : Promise.resolve(null) });
+      const entry: Entry = { item, decoded: Promise.resolve(null), enqueuedAtMs: now() };
+      entry.decoded = item.url
+        ? decode(item.url).then((b) => {
+            entry.decodedAtMs = now();
+            return b;
+          })
+        : Promise.resolve(null);
+      queue.push(entry);
       if (ctx.state === "suspended") void ctx.resume();
       void pump();
     },

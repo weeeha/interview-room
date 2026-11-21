@@ -114,7 +114,10 @@ describe("session create and read", () => {
       silencePromptSec: 8,
       silenceOfferSec: 12,
       endOfSpeechMs: 1200,
+      speculativeSttMs: 550,
     });
+    const off = createApp({ ...ENV, SPECULATIVE_STT_MS: "0" });
+    expect(await (await off.request("/api/config")).json()).toMatchObject({ speculativeSttMs: 0 });
     const custom = createApp({ ...ENV, SILENCE_PROMPT_SEC: "5", SILENCE_OFFER_SEC: "9" });
     expect(await (await custom.request("/api/config")).json()).toMatchObject({ silencePromptSec: 5, silenceOfferSec: 9 });
   });
@@ -159,6 +162,98 @@ describe("turn stream", () => {
     expect(saved.turns[1]).toMatchObject({ kind: "answer", startMs: 5000, endMs: 20000, audioPath: "audio/turn-01.wav" });
     expect(existsSync(join(dir, s.id, "audio", "turn-01.wav"))).toBe(true);
     expect(saved.turns[2]?.latency?.sttMs).toBe(1);
+  });
+
+  it("test_transcribe_ahead_reuses_the_transcript_for_identical_audio", async () => {
+    const stt = createFakeSTT(["First text from the early try.", "Second text."]);
+    const { app } = setup({ stt });
+    const s = await create(app);
+    await turn(app, s.id, { kind: "start" });
+    const audio = new Blob([new Uint8Array(3200).fill(7)], { type: "audio/wav" });
+    const early = new FormData();
+    early.set("audio", audio, "ahead.wav");
+    expect((await app.request(`/api/session/${s.id}/transcribe-ahead`, { method: "POST", body: early })).status).toBe(202);
+    const f = new FormData();
+    f.set("meta", JSON.stringify({ kind: "answer", speechStartMs: 1000, speechEndMs: 9000 }));
+    f.set("audio", audio, "a.wav");
+    const res = await app.request(`/api/session/${s.id}/turn`, { method: "POST", body: f });
+    const lines = parseLines(await res.text());
+    expect(lines[0]).toMatchObject({ type: "transcript", text: "First text from the early try." });
+    expect(stt.calls).toHaveLength(1);
+    const saved = await getSession(app, s.id);
+    expect(saved.turns[1]?.text).toBe("First text from the early try.");
+    expect(saved.turns[2]?.stages?.server).toMatchObject({ sttAhead: 1 });
+  });
+
+  it("test_transcribe_ahead_is_not_used_when_the_audio_differs", async () => {
+    const stt = createFakeSTT(["Early text for the shorter audio.", "Text of the full answer."]);
+    const { app } = setup({ stt });
+    const s = await create(app);
+    await turn(app, s.id, { kind: "start" });
+    const early = new FormData();
+    early.set("audio", new Blob([new Uint8Array(3200).fill(1)], { type: "audio/wav" }), "ahead.wav");
+    await app.request(`/api/session/${s.id}/transcribe-ahead`, { method: "POST", body: early });
+    const f = new FormData();
+    f.set("meta", JSON.stringify({ kind: "answer", speechStartMs: 1000, speechEndMs: 9000 }));
+    f.set("audio", new Blob([new Uint8Array(6400).fill(1)], { type: "audio/wav" }), "a.wav");
+    const lines = parseLines(await (await app.request(`/api/session/${s.id}/turn`, { method: "POST", body: f })).text());
+    expect(lines[0]).toMatchObject({ type: "transcript", text: "Text of the full answer." });
+    expect(stt.calls).toHaveLength(2);
+    const saved = await getSession(app, s.id);
+    expect(saved.turns[2]?.stages?.server?.sttAhead).toBeUndefined();
+  });
+
+  it("test_transcribe_ahead_failure_falls_back_to_a_normal_transcription", async () => {
+    const stt = createFakeSTT([new Error("whisper hiccup"), "Recovered text."]);
+    const { app } = setup({ stt });
+    const s = await create(app);
+    await turn(app, s.id, { kind: "start" });
+    const audio = new Blob([new Uint8Array(3200).fill(3)], { type: "audio/wav" });
+    const early = new FormData();
+    early.set("audio", audio, "ahead.wav");
+    await app.request(`/api/session/${s.id}/transcribe-ahead`, { method: "POST", body: early });
+    const f = new FormData();
+    f.set("meta", JSON.stringify({ kind: "answer", speechStartMs: 1000, speechEndMs: 9000 }));
+    f.set("audio", audio, "a.wav");
+    const lines = parseLines(await (await app.request(`/api/session/${s.id}/turn`, { method: "POST", body: f })).text());
+    expect(lines[0]).toMatchObject({ type: "transcript", text: "Recovered text." });
+    expect(stt.calls).toHaveLength(2);
+  });
+
+  it("test_transcribe_ahead_needs_audio_and_a_known_session", async () => {
+    const { app } = setup();
+    const s = await create(app);
+    const empty = new FormData();
+    expect((await app.request(`/api/session/${s.id}/transcribe-ahead`, { method: "POST", body: empty })).status).toBe(400);
+    const f = new FormData();
+    f.set("audio", new Blob([new Uint8Array(100)]), "a.wav");
+    expect((await app.request("/api/session/abcdef123/transcribe-ahead", { method: "POST", body: f })).status).toBe(404);
+  });
+
+  it("test_reply_turns_carry_server_stage_marks", async () => {
+    const { app } = setup();
+    const s = await create(app);
+    await turn(app, s.id, { kind: "start" });
+    await turn(app, s.id, { kind: "answer", speechStartMs: 1000, speechEndMs: 9000 }, true);
+    const saved = await getSession(app, s.id);
+    const server = saved.turns[2]?.stages?.server ?? {};
+    for (const k of ["startMs", "sttDoneMs", "firstSentenceMs", "audioLineMs"]) expect(typeof server[k]).toBe("number");
+    expect((server.sttDoneMs as number) <= (server.firstSentenceMs as number)).toBe(true);
+    expect((server.firstSentenceMs as number) <= (server.audioLineMs as number)).toBe(true);
+  });
+
+  it("test_client_stage_marks_from_prev_are_stored_on_the_turn", async () => {
+    const { app } = setup();
+    const s = await create(app);
+    await turn(app, s.id, { kind: "start" });
+    await turn(app, s.id, {
+      kind: "answer",
+      speechStartMs: 1000,
+      speechEndMs: 9000,
+      prev: { turnIndex: 0, gapMs: 100, clientStages: { detectedMs: 1210, audibleMs: 3100, "bad key!": 5 } },
+    }, true);
+    const saved = await getSession(app, s.id);
+    expect(saved.turns[0]?.stages?.client).toEqual({ detectedMs: 1210, audibleMs: 3100 });
   });
 
   it("test_streams_first_audio_before_llm_finishes", async () => {
