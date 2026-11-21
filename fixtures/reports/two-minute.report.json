@@ -1,0 +1,40 @@
+{
+  "sessionId": "fixture-two-minute",
+  "summary": "Clear structure on the migration answer, thinner on growth. Fillers are moderate.",
+  "perQuestion": [
+    {
+      "questionId": "q-migration",
+      "strengths": [
+        { "note": "Staged rollout with numbers.", "turnIndex": 2, "quote": "We moved ten percent of accounts first, then half, then everyone." },
+        { "note": "Concrete result.", "turnIndex": 2, "quote": "We finished a week early and support tickets stayed flat." }
+      ],
+      "gaps": [
+        { "note": "Follow-up leans on a vague measure of the cleanup.", "turnIndex": 4, "quote": "It was, like, slow work but it caught errors early." }
+      ],
+      "rubric": { "structure": 3, "specificity": 3, "relevance": 4, "concision": 3 }
+    },
+    {
+      "questionId": "q-strength",
+      "strengths": [
+        { "note": "Names a strength and ties it to the project.", "turnIndex": 6, "quote": "my biggest strength is planning" }
+      ],
+      "gaps": [
+        { "note": "Weakness has no example.", "turnIndex": 6, "quote": "I take on too much" }
+      ],
+      "rubric": { "structure": 2, "specificity": 2, "relevance": 3, "concision": 3 }
+    },
+    {
+      "questionId": "q-growth",
+      "strengths": [
+        { "note": "Sensible first step.", "turnIndex": 8, "quote": "I would start by asking questions." }
+      ],
+      "gaps": [
+        { "note": "No concrete goal or timeline.", "turnIndex": 8, "quote": "I want to grow into leading a team." }
+      ],
+      "rewrite": "In a year I want to lead a team of three. I would start by listening, then agree two goals with them.",
+      "rubric": { "structure": 2, "specificity": 1, "relevance": 3, "concision": 4 }
+    }
+  ],
+  "delivery": { "wordsPerMinute": 140, "fillerCount": 12, "medianAnswerSec": 20.5, "longestPauseMs": 3500, "interruptedCount": 1 },
+  "nextDrill": ["Give one example for each weakness.", "State a goal with a date."]
+}
