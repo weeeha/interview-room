@@ -24,18 +24,28 @@ export function createFeedbackLLM(env: Record<string, string | undefined> = proc
   return createLLMProvider(env);
 }
 
-/** Runs `fn` over `items` with at most `limit` in flight and returns the results in the order of `items`. */
+/**
+ * Runs `fn` over `items` with at most `limit` in flight and returns the results in the order of `items`.
+ * After the first failure no new item starts, the calls already running are waited for (so nothing keeps
+ * reporting progress after the caller has seen the error), and then that first error is thrown.
+ */
 export async function mapLimit<T, R>(items: T[], limit: number, fn: (item: T) => Promise<R>): Promise<R[]> {
   const out: R[] = new Array(items.length);
   let next = 0;
+  let failure: { error: unknown } | null = null;
   const worker = async () => {
-    for (;;) {
+    while (!failure) {
       const i = next++;
       if (i >= items.length) return;
-      out[i] = await fn(items[i] as T);
+      try {
+        out[i] = await fn(items[i] as T);
+      } catch (error) {
+        failure ??= { error };
+      }
     }
   };
   await Promise.all(Array.from({ length: Math.min(limit, items.length) }, worker));
+  if (failure) throw (failure as { error: unknown }).error;
   return out;
 }
 

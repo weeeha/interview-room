@@ -135,6 +135,22 @@ describe("runFeedback", () => {
     expect(await mapLimit([], 3, async (n: number) => n)).toEqual([]);
   });
 
+  it("test_map_limit_waits_for_running_calls_then_throws_the_first_error", async () => {
+    const started: number[] = [];
+    let finished = 0;
+    await expect(
+      mapLimit([1, 2, 3, 4, 5], 2, async (n) => {
+        started.push(n);
+        await new Promise((r) => setTimeout(r, n === 1 ? 1 : 20));
+        finished++;
+        if (n === 1) throw new Error("boom");
+        return n;
+      }),
+    ).rejects.toThrow("boom");
+    expect(started).toEqual([1, 2]); // nothing new starts after the failure
+    expect(finished).toBe(2); // the call that was still running was waited for
+  });
+
   it("test_feedback_fabricated_quote_retries_once", async () => {
     const llm = createFakeLLM([], responder({ badFirst: ["q-migration"] }));
     const stages: string[] = [];

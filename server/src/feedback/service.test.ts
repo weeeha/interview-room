@@ -27,7 +27,7 @@ const ended = (over: Partial<Session> = {}): Session => ({ ...structuredClone(fi
 
 describe("feedback concurrency setting", () => {
   it("test_feedback_concurrency_setting", () => {
-    expect(feedbackConcurrency({})).toBeGreaterThanOrEqual(1);
+    expect(feedbackConcurrency({})).toBe(3);
     expect(feedbackConcurrency({ FEEDBACK_CONCURRENCY: "3" })).toBe(3);
     expect(feedbackConcurrency({ FEEDBACK_CONCURRENCY: "1" })).toBe(1);
     expect(feedbackConcurrency({ FEEDBACK_CONCURRENCY: "99" })).toBe(8);

@@ -34,7 +34,9 @@ export function feedbackConcurrency(env: Record<string, string | undefined>): nu
   const n = Math.floor(Number(env.FEEDBACK_CONCURRENCY));
   return Number.isFinite(n) && n >= 1 ? Math.min(n, 8) : DEFAULT_FEEDBACK_CONCURRENCY;
 }
-const DEFAULT_FEEDBACK_CONCURRENCY = 1;
+// Measured on this Mac with 4 slots: 3 calls at once took 39 to 55 s against 74 to 88 s one at a time (under load). Extra
+// requests beyond the slots the model server has simply wait their turn there, so a 1-slot server stays correct.
+const DEFAULT_FEEDBACK_CONCURRENCY = 3;
 
 /**
  * Deterministic stand-in for the feedback model, used only when LLM_PROVIDER=fake.
