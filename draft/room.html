@@ -22,7 +22,7 @@
 <main class="room">
 
   <div class="room-backdrop">
-    <span class="bd-room">room view (placeholder for the Marble scene)</span>
+    <span class="bd-room">room view (placeholder for the 3D scene)</span>
     <span class="bd-flat">Plain backdrop. Captions carry the session.</span>
     <span class="marker" data-not="room-loading mic-denied">Interviewer<span data-only="interviewer-speaking"> is speaking</span></span>
   </div>
@@ -39,7 +39,8 @@
       <span data-only="provider-error">Interviewer voice failed</span>
       <span data-only="ending">Ending the session</span>
     </p>
-    <p class="timer"><time>04:12</time> of 10:00, question 2 of 5</p>
+    <p class="timer" data-not="room-loading"><time>04:12</time> of 10:00, question 2 of 5</p>
+    <p class="timer" data-only="room-loading"><time>00:00</time> of 10:00, not started</p>
   </div>
 
   <div class="room-notice">

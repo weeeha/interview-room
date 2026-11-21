@@ -35,3 +35,49 @@ Floor rules are never waived. (R) marks a reflex rule that may be waived in a co
 - Color: one accent (deep blue) plus one signal (brick red, errors only), over neutrals. Dark mode flips the same tokens.
 - Space: 8px unit, steps 4, 8, 16, 24, 40, 64.
 - Radius: 6px for controls and cards, nothing else. No shadows at all.
+
+## Audit, 2026-11-20
+
+Skill: `unslop:unslop`, Phase 2. The skill asks for a reviewer subagent as the last step; none was dispatched (this audit ran without subagents), so the fresh-eyes pass was done by the auditor directly from screenshots and the DOM.
+
+### What was checked
+
+- Browser: the Browser pane (Chromium) and headless Chrome through `render.mjs`. **Safari: not checked.**
+- Sizes: 1440x900 and 390x844 for all 19 states (setup 5, room 9, report 5); the render tier also ran at 375 and 1280.
+- Schemes: light and dark for setup, report and the flow map; the room is dark by design. Room captions were also checked over the light placeholder (`?bg=light`).
+- Mechanical: `rules.mjs check` on draft/ (css, html, js), `render.mjs` (overflow, focus ring, state stability, motion at rest, contrast from pixels, tap targets, readable text, broken images, script errors). No em dashes, exclamation marks, "TODO" or lorem in any text. No company or product names after the fix below.
+- By hand: Tab through each screen (visible 2px ring on every stop, including the radio cards through `:has`), M and E on the room screen, the `@supports not selector(:has(*))` fallback, the ending-state progress bar, caption contrast over both placeholders.
+
+### Findings
+
+| # | Finding | Rule | Fix or reason kept |
+|---|---|---|---|
+| 1 | Header, draft bar and state-link anchors were 18 to 23px tall at 375 (34 FAILs) | RSP-2 | Fixed: `display: inline-block; padding: 4px 0` on those links (26px hit area, no layout change). 0 FAIL after. |
+| 2 | Raw hex `#3b3d40` for placeholder text on the light backdrop | LAY-16 | Fixed: token `--on-place-light` (#33363a, about 8:1 on the light placeholder). |
+| 3 | Room placeholder text named a company product ("Marble scene") | project constraint 6 | Fixed: now "placeholder for the 3D scene". |
+| 4 | Room banners hugged the left edge while captions and controls sat in a centred 760px column | LAY-10 | Fixed: banners use the same 760px centred column. |
+| 5 | Room loading showed "04:12 of 10:00, question 2 of 5" before the session had started | CPY-7 | Fixed: loading shows "00:00 of 10:00, not started". |
+| 6 | Pressing M in the mic-denied state replaced "Mic blocked" with "Mic off"; Mute stayed live while ending | STA-1 | Fixed: Mute is disabled in `mic-denied` and `ending`, and the M shortcut respects that. |
+| 7 | The "Interviewer" marker had a bright 2px border, so it read as a button | CMP-6 | Fixed: border is the hairline colour; accent border only while the interviewer speaks (colour only, width never changes). |
+| 8 | `.visually-hidden` spans were measured 57 to 64px off the screen edge | LAY-12 | Fixed the position (`left: 0; top: 0`). The remaining "-1px" WARN on 7 spans is the 1px clipped text; kept, it is invisible by design and not a real overflow. |
+| 9 | `.choice input { opacity: 0 }` flagged by MOT-6 | MOT-6 | Kept: it is a native radio overlaid on its own card, not a reveal that waits for a script. Without `:has()` support the `@supports` fallback shows the native radio. |
+
+### Unchecked items from the builder, now checked
+
+- `@supports not selector(:has(*))` fallback: checked by forcing the fallback rule on in the pane. Native radios show and the checked card still reads as selected by the radio itself. In the compact rows (style, length) the radio sits above the label text, which is plain but usable. Kept.
+- M and E: M toggles Mute and the mic text, E moves to the ending state and disables End. Both are ignored with Ctrl, Cmd or Alt held and while focus is in a form field.
+- Ending progress bar with no value: shows the browser's indeterminate bar, has an accessible name, and the banner says what is happening in words. Kept. It animates only while the state is active (native control).
+- Caption contrast over light and dark placeholders: `render.mjs` reads the pixels behind the glyphs; 0 FAIL on both at 1440. The captions sit on a solid 90% scrim, no blur.
+
+### Content rules
+
+- One filled button per view: setup has Start session; room has the filled button only in the three states that need an action (mic-denied, provider-error, ending); report has none filled (Play and Show more are outlined). Confirmed in screenshots.
+- The report makes no hiring prediction (it states so) and the room screen shows no feedback while the interview runs (the interviewer only asks questions and follow-ups).
+- No horizontal scroll at 390 in any state.
+
+### Not checked
+
+- Safari (cannot be driven here).
+- Real screen reader output; real microphone or audio.
+- The draft has no print styles; not in scope.
+- Screenshots in `media/screens/` are the rendered full page at 1440 wide from `render.mjs`, light scheme (the room is dark).

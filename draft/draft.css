@@ -41,6 +41,7 @@
   --on-scrim-2: #c3c7cb;
   --place-dark: #1b1e21;            /* room view placeholder, dark */
   --place-light: #d9d7d0;           /* room view placeholder, light */
+  --on-place-light: #33363a;        /* text on the light placeholder, 8:1 */
 
   --radius: 6px;
   --gutter: 16px;
@@ -115,6 +116,7 @@ body {
 }
 .site-header .wordmark { font-weight: 600; }
 .site-header nav { display: flex; gap: var(--space-3); font-size: var(--text-sm); }
+.site-header nav a, .draft-bar a, .draft-states a { display: inline-block; padding: var(--space-1) 0; }
 
 .stack > * + * { margin-top: var(--space-4); }
 .stack-sm > * + * { margin-top: var(--space-2); }
@@ -265,7 +267,7 @@ textarea { resize: vertical; line-height: var(--leading); min-height: 120px; max
 .draft-states a[aria-current="true"] { color: var(--text); font-weight: 600; text-decoration: none; }
 
 .visually-hidden {
-  position: absolute; width: 1px; height: 1px; overflow: hidden;
+  position: absolute; left: 0; top: 0; margin: -1px; width: 1px; height: 1px; overflow: hidden;
   clip: rect(0 0 0 0); white-space: nowrap;
 }
 
@@ -342,13 +344,13 @@ progress { width: 100%; max-width: 320px; height: 8px; accent-color: var(--accen
   color: var(--text-2); font-size: var(--text-sm); text-align: center; padding: var(--space-3) var(--gutter);
 }
 .room-backdrop .bd-room { display: none; }
-body[data-bg="light"] .room-backdrop .bd-room { color: #3b3d40; }
+body[data-bg="light"] .room-backdrop .bd-room { color: var(--on-place-light); }
 
 .marker {
   margin-left: var(--space-3);
   padding: var(--space-1) var(--space-3);
   background: var(--scrim); color: var(--on-scrim);
-  border: 2px solid var(--on-scrim-2); border-radius: var(--radius); font-size: var(--text-sm);
+  border: 2px solid var(--line); border-radius: var(--radius); font-size: var(--text-sm);
 }
 body[data-state="interviewer-speaking"] .marker { border-color: var(--accent); }
 
@@ -360,7 +362,7 @@ body[data-state="interviewer-speaking"] .marker { border-color: var(--accent); }
 .timer { color: var(--text-2); font-variant-numeric: tabular-nums; }
 
 .room-notice { padding: var(--space-3) var(--gutter) 0; }
-.room-notice .banner { max-width: 640px; }
+.room-notice .banner { max-width: 760px; margin: 0 auto; }
 
 .room-bottom { margin-top: auto; padding: var(--space-3) var(--gutter) var(--space-4); display: grid; gap: var(--space-3); }
 

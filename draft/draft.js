@@ -39,6 +39,7 @@
     if (mt) { var muted = document.getElementById('mute').getAttribute('aria-pressed') === 'true'; mt.textContent = state === 'mic-denied' ? 'Mic blocked' : (muted ? 'Mic off' : 'Mic on'); }
     var end = document.getElementById('end');
     if (end) end.disabled = state === 'ending';
+    var mu = document.getElementById('mute'); if (mu) mu.disabled = state === 'ending' || state === 'mic-denied';
     if (!keepCaption) setCaption(state);
   }
 
@@ -66,11 +67,11 @@
   // ----- room: mute and end, with keyboard shortcuts -----
   var mute = document.getElementById('mute');
   function toggleMute() {
-    if (!mute) return;
+    if (!mute || mute.disabled) return;
     var on = mute.getAttribute('aria-pressed') !== 'true';
     mute.setAttribute('aria-pressed', String(on));
     mute.querySelector('.mute-label').textContent = on ? 'Unmute' : 'Mute';
-    var s = document.getElementById('mic-text'); if (s) s.textContent = on ? 'Mic off' : 'Mic on';
+    var s = document.getElementById('mic-text'); if (s && body.getAttribute('data-state') !== 'mic-denied') s.textContent = on ? 'Mic off' : 'Mic on';
   }
   if (mute) mute.addEventListener('click', toggleMute);
   var end = document.getElementById('end');
