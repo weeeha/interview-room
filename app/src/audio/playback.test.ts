@@ -54,6 +54,16 @@ function setup(opts: { speechVoices?: number } = {}) {
 }
 
 describe("playback queue", () => {
+  it("reports playing while the only item is still being decoded", async () => {
+    const t = setup();
+    t.pb.enqueue({ turnIndex: 0, sentenceIndex: 0, text: "One.", url: "/a" });
+    expect(t.pb.isPlaying()).toBe(true);
+    await t.tick();
+    await t.tick();
+    expect(t.sources.length).toBe(1);
+    expect(t.pb.isPlaying()).toBe(true);
+  });
+
   it("test_plays_urls_in_order", async () => {
     const t = setup();
     t.pb.enqueue({ turnIndex: 0, sentenceIndex: 0, text: "One.", url: "/a" });

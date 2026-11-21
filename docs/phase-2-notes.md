@@ -111,3 +111,24 @@ Reading the interviewer lines of both runs:
 - The scripted answers are in a fixed order and do not always match the question asked, which the interviewer does not notice. That is a limit of the script, not of the loop.
 - Whisper wrote digits for number words ("20 minutes"), harmless here.
 - Not checked: any real browser, real voice, Safari, and the stop time of real playback (AC-7).
+
+## Turn loop, browser side
+
+- Files: `app/src/session/loop.ts` (framework-free loop with injected capture, playback, api and timers), `app/src/api.ts` (HTTP and NDJSON client), `app/src/screens/Setup.tsx` and `Room.tsx` (voice only; the 3D view mounts into `<div data-room-view>`), `app/src/styles/base.css` (the draft stylesheet, copied), `scripts/e2e-fake-mic.mjs`.
+- Audio rule: the server sends all `sentence` lines of a reply first and the `audio` lines after them. With a server voice, each sentence is held until its own `audio` line arrives and is then queued with the url. A held sentence with no audio is queued without a url (speechSynthesis) only when a later sentence's audio arrives first or the `done` line arrives. With `TTS_PROVIDER=browser` every sentence is queued at once with no url.
+- Gap: `gapMs` is the first audible interviewer sample (playback `onStart`) minus the candidate's `speechEndMs`, so it includes the 1.2 s end-of-speech window. It goes in the next request's `prev`.
+- Barge-in: on `speechStart` while a reply is streaming or audible, `playback.stop()` runs in the same call, the stream is aborted, and the next request carries `prev.interrupted`, `prev.interruptStopMs` (a timestamp since session start, as the server expects) and `prev.spokenText`. The duration from speech start to silence is shown on the `?debug=1` line.
+- Silence: 8 s after the interviewer finishes with no candidate speech sends `silence_prompt`, then 12 s after that prompt finishes sends `silence_offer_next`. Values come from `/api/config`, with 8 and 12 as defaults. Mute pauses the timer.
+- Errors: an `error` line or a failed request stops playback, shows the banner with Retry, and Retry resends the same request (the server rolls a failed turn back). A stream that ends without `done` after an empty transcript means nothing was heard: the loop keeps listening. Any other stream end without `done` is an error.
+- Resume: opening a running session shows "resume or end". Resume sends `silence_prompt` and keeps the clock of the server log.
+- Playback bug found and fixed in `app/src/audio/playback.ts`: `isPlaying()` was false while the only queued item was being fetched and decoded, so the loop thought a one-sentence reply had ended before it started. A `loading` flag now covers that gap (regression test added).
+
+### Real run with a fake microphone (2026-11-21)
+
+- Command: `node scripts/e2e-fake-mic.mjs` with `npm run dev` up (Chrome 157 headless, muted, throwaway profile, 5-minute session, local LLM, whisper and Kokoro).
+- Fake mic: four invented answers made with `say`, 14 s of silence between them. Two Chrome details cost time: the WAV must have no LIST metadata chunk, and the audio service sandbox must be off (`--disable-features=AudioServiceSandbox`) or the file input is silent.
+- Result: 4 candidate turns transcribed and answered, session ended with End and status `ended`. Gap values in the log (ms): 3823, 3028, 2250, plus 3487 read from the page for the last turn. Median of the logged three is 3028, above the 2.5 s initial target; about 1.2 s of it is the end-of-speech window, and the Mac load average was 5 to 9.
+- Interruptions: 2 (the fake mic talks on its own schedule). The first answer began during the opening line and cut it off, and one silence prompt was cut off. Speech start to silence: 196 ms and 191 ms (under 500 ms). Both turns are `interrupted: true` in the log.
+- Capture path: AudioWorklet ran (1 worklet node, 0 ScriptProcessor).
+- Console errors: none from the app. Only a 404 for `/favicon.ico`.
+- Unverified: speechSynthesis (headless Chrome has 0 voices, the server voice was used so the fallback never ran); audible quality; echo with real speakers; the ScriptProcessor fallback; the 3-sentence "starts before generation ends" check by ear. Safari: not checked.

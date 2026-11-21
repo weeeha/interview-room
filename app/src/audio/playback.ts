@@ -114,6 +114,7 @@ export function createPlayback(opts: PlaybackOptions): Playback {
   let generation = 0;
   let lastStartedTurn = -1;
   let active: Active | null = null;
+  let loading = false; // an item has left the queue and is being decoded, so nothing is active yet
   let done: Array<{ item: PlaybackItem; playedMs: number }> = [];
   let endActive: (() => void) | null = null; // resolves the pump's wait for the active item
   let voice: Promise<SpeechSynthesisVoice | undefined> | null = null;
@@ -242,7 +243,9 @@ export function createPlayback(opts: PlaybackOptions): Playback {
     try {
       while (queue.length > 0 && gen === generation) {
         const entry = queue.shift()!;
+        loading = true;
         const buf = entry.item.url ? await entry.decoded : null;
+        loading = false;
         if (gen !== generation) return;
         if (buf) await playBuffer(entry.item, buf, gen);
         else await speakItem(entry.item, gen); // no url, or the audio failed to load
@@ -297,6 +300,7 @@ export function createPlayback(opts: PlaybackOptions): Playback {
       speech?.cancel();
       queue = [];
       active = null;
+      loading = false;
       done = [];
       pumping = false;
       const release = endActive;
@@ -316,6 +320,6 @@ export function createPlayback(opts: PlaybackOptions): Playback {
     },
 
     output: gain,
-    isPlaying: () => active !== null || queue.length > 0,
+    isPlaying: () => active !== null || queue.length > 0 || loading,
   };
 }
