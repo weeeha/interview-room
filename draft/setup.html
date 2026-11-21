@@ -1,0 +1,168 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Set up a session - Interview room</title>
+<link rel="stylesheet" href="draft.css">
+</head>
+<body data-state="default">
+<div class="page">
+
+  <header class="site-header">
+    <span class="wordmark">Interview room</span>
+    <nav aria-label="Draft screens">
+      <a href="setup.html" aria-current="page">Setup</a>
+      <a href="room.html">Room</a>
+      <a href="report.html">Report</a>
+    </nav>
+  </header>
+
+  <main>
+    <h1>Set up a session</h1>
+    <p class="lead">Pick a room, a question bank and a style. The interviewer asks the questions and follows up on what you say. Feedback comes after the session.</p>
+
+    <div class="banner error spaced" role="alert" data-only="error">
+      <p class="banner-title">Cannot reach the local server.</p>
+      <p>The setup screen needs the voice server on this computer. Start it, then try again. Your choices below are kept.</p>
+      <button type="button" class="btn" data-retry>Retry connection</button>
+    </div>
+
+    <form action="room.html" method="get" class="stack" aria-busy="false">
+
+      <fieldset>
+        <legend>Room</legend>
+        <div class="choices cols-3">
+          <label class="choice">
+            <input type="radio" name="room" value="office" checked>
+            <span class="room-view" aria-hidden="true">room view</span>
+            <span class="choice-body">
+              <span class="choice-title">Interview office</span>
+              <span class="choice-sub">One interviewer across a desk.</span>
+            </span>
+          </label>
+          <label class="choice">
+            <input type="radio" name="room" value="panel">
+            <span class="room-view" aria-hidden="true">room view</span>
+            <span class="choice-body">
+              <span class="choice-title">Panel room</span>
+              <span class="choice-sub">A long table, one voice.</span>
+            </span>
+          </label>
+          <label class="choice">
+            <input type="radio" name="room" value="call">
+            <span class="room-view" aria-hidden="true">room view</span>
+            <span class="choice-body">
+              <span class="choice-title">Video-call corner</span>
+              <span class="choice-sub">A desk and a screen at home.</span>
+            </span>
+          </label>
+        </div>
+      </fieldset>
+
+      <div class="field">
+        <label class="label" for="bank">Question bank</label>
+        <select id="bank" name="bank" required data-only="default">
+          <option value="design-general">Product design, general (24 questions)</option>
+          <option value="behavioral">Behavioral, shared across roles (18 questions)</option>
+        </select>
+        <select id="bank-long" name="bank" data-only="long" aria-label="Question bank, long name example">
+          <option value="design-general">Product design, general, with the long portfolio-review follow-up set for senior roles (24 questions)</option>
+        </select>
+        <select id="bank-empty" disabled data-only="empty" aria-label="Question bank">
+          <option>No banks found</option>
+        </select>
+        <select id="bank-error" disabled data-only="error" aria-label="Question bank">
+          <option>Banks unavailable</option>
+        </select>
+        <select id="bank-loading" disabled data-only="loading" aria-label="Question bank">
+          <option>Loading banks</option>
+        </select>
+        <p class="hint" data-only="empty">Add a markdown file to the bank folder, then reload. Set the folder with BANK_DIR in your settings. Question banks stay on this computer.</p>
+        <p class="hint" data-only="loading">Reading the bank folder.</p>
+        <p class="hint" data-only="error">Banks cannot load while the server is unreachable.</p>
+      </div>
+
+      <fieldset>
+        <legend>Interviewer style</legend>
+        <div class="choices inline">
+          <label class="choice compact"><input type="radio" name="style" value="warm"><span class="choice-body"><span class="choice-title">Warm</span></span></label>
+          <label class="choice compact"><input type="radio" name="style" value="neutral" checked><span class="choice-body"><span class="choice-title">Neutral</span></span></label>
+          <label class="choice compact"><input type="radio" name="style" value="probing"><span class="choice-body"><span class="choice-title">Probing</span></span></label>
+        </div>
+        <p class="hint">Probing asks more follow-ups on each answer.</p>
+      </fieldset>
+
+      <fieldset>
+        <legend>Length</legend>
+        <div class="choices inline">
+          <label class="choice compact"><input type="radio" name="length" value="5"><span class="choice-body"><span class="choice-title">5 minutes</span></span></label>
+          <label class="choice compact"><input type="radio" name="length" value="10" checked><span class="choice-body"><span class="choice-title">10 minutes</span></span></label>
+          <label class="choice compact"><input type="radio" name="length" value="20"><span class="choice-body"><span class="choice-title">20 minutes</span></span></label>
+        </div>
+      </fieldset>
+
+      <div class="field">
+        <label class="label" for="role">Role context (optional)</label>
+        <textarea id="role" name="role" rows="5" data-not="long" aria-describedby="role-hint" placeholder="Paste the job description or a few lines about the role."></textarea>
+        <textarea id="role-long" name="role" rows="5" aria-describedby="role-hint" data-only="long" aria-label="Role context (optional)">Senior product designer on a team of six that owns the booking flow for a regional rail operator. The role leads discovery for the mobile app, partners with two engineers and one researcher, and presents quarterly direction to the operations board. Responsibilities: run weekly design reviews, keep the design system documented, mentor two mid-level designers, and work with accessibility specialists on every release. Requirements: eight or more years in product design, a portfolio that shows end-to-end ownership, experience with timetable, ticketing or payment flows, comfort presenting trade-offs to non-designers. Nice to have: experience with regulated industries, prior work with station signage or wayfinding, fluency in French. The team works in Montreal two days a week. The process has four rounds: recruiter call, portfolio review, a case study session, and a conversation with the director.</textarea>
+        <p class="hint" id="role-hint">Stays on this computer. It goes to the interviewer as context. Long text scrolls inside the box.</p>
+      </div>
+
+      <div class="stack-sm">
+        <button type="submit" class="btn btn-primary" data-not="empty loading error">Start session</button>
+        <button type="button" class="btn" disabled data-only="empty loading error">Start session</button>
+        <p class="note" data-only="empty">Add a question bank first. A session needs at least one.</p>
+        <p class="note" data-only="loading">Start is available when the banks have loaded.</p>
+        <p class="note" data-only="error">Start is available when the server is reachable.</p>
+        <p class="note"><strong>Providers:</strong> speech to text, interviewer and voice all run locally. All local. No cost.</p>
+      </div>
+
+    </form>
+
+    <section aria-labelledby="past">
+      <h2 id="past">Past sessions</h2>
+
+      <ul class="rows" data-only="default long">
+        <li>
+          <div class="row">
+            <span class="row-main">Product design, general</span>
+            <span class="row-meta">Nov 12, 10 minutes</span>
+            <a class="row-link" href="report.html">Read report<span class="visually-hidden"> for Nov 12</span></a>
+          </div>
+        </li>
+        <li>
+          <div class="row">
+            <span class="row-main">Behavioral, shared across roles</span>
+            <span class="row-meta">Nov 9, 20 minutes</span>
+            <a class="row-link" href="report.html">Read report<span class="visually-hidden"> for Nov 9</span></a>
+          </div>
+        </li>
+      </ul>
+
+      <p data-only="empty">No sessions yet. Your first report appears here after you finish one.</p>
+
+      <ul class="rows" data-only="loading" aria-label="Loading past sessions">
+        <li><div class="row"><span class="pending"></span><span class="pending short"></span></div></li>
+        <li><div class="row"><span class="pending"></span><span class="pending short"></span></div></li>
+      </ul>
+
+      <p data-only="error">Past sessions cannot load while the server is unreachable.</p>
+    </section>
+  </main>
+
+  <footer class="draft-states">
+    <p>Draft states for this screen</p>
+    <ul>
+      <li><a href="setup.html" data-state-link="default">Default</a></li>
+      <li><a href="setup.html?state=empty" data-state-link="empty">Empty</a></li>
+      <li><a href="setup.html?state=loading" data-state-link="loading">Loading</a></li>
+      <li><a href="setup.html?state=error" data-state-link="error">Error</a></li>
+      <li><a href="setup.html?state=long" data-state-link="long">Long content</a></li>
+    </ul>
+  </footer>
+
+</div>
+<script src="draft.js"></script>
+</body>
+</html>
