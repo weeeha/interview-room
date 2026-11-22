@@ -81,11 +81,29 @@ export class CapturePipeline {
       onSpeechStart?: (atMs: number) => void;
       onLevel?: (level: number) => void;
     },
-    opts: { endOfSpeechMs?: number; pauseMs?: number; offsetMs?: number; vad?: VadOptions } = {},
+    opts: {
+      endOfSpeechMs?: number;
+      pauseMs?: number;
+      offsetMs?: number;
+      /**
+       * When both are given, the offset is taken at the first chunk instead of from `offsetMs`: the clock reading at
+       * the end of that chunk, minus its length, minus `sessionStartMs`. That is when audio time zero really was.
+       */
+      clock?: () => number;
+      sessionStartMs?: number;
+      vad?: VadOptions;
+    } = {},
   ) {
     this.vad = new Vad({ endOfSpeechMs: opts.endOfSpeechMs, pauseMs: opts.pauseMs, ...opts.vad });
     this.offsetMs = opts.offsetMs ?? 0;
+    if (opts.clock && opts.sessionStartMs !== undefined) {
+      this.clock = opts.clock;
+      this.sessionStartMs = opts.sessionStartMs;
+    }
   }
+
+  private clock?: () => number;
+  private sessionStartMs = 0;
 
   private offsetMs: number;
 
@@ -115,6 +133,9 @@ export class CapturePipeline {
   }
 
   feed(samples: Float32Array): void {
+    if (this.clock && this.samplesSeen === 0) {
+      this.offsetMs = this.clock() - this.sessionStartMs - (samples.length / this.sampleRate) * 1000;
+    }
     const t0 = (this.samplesSeen / this.sampleRate) * 1000;
     this.samplesSeen += samples.length;
     if (this._muted) return;
@@ -229,12 +250,16 @@ export async function startCapture(opts: CaptureOptions): Promise<CaptureHandle>
   }
   if (ctx.state !== "running") await ctx.resume().catch(() => {});
 
+  // The audio clock starts at the first chunk, which arrives after the worklet has loaded (50 to 470 ms later),
+  // so the pipeline reads the offset there. `offsetMs` is only the fallback.
   const now = performance.now();
   const sessionStart = opts.sessionStartMs ?? now;
   const pipeline = new CapturePipeline(ctx.sampleRate, opts, {
     endOfSpeechMs: opts.endOfSpeechMs,
     pauseMs: opts.pauseMs,
     offsetMs: now - sessionStart,
+    clock: () => performance.now(),
+    sessionStartMs: sessionStart,
     vad: opts.vad,
   });
 

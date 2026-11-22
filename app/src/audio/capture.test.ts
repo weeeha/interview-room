@@ -52,6 +52,21 @@ describe("capture pipeline", () => {
     expect(n).toBeLessThan(2.7 * 16000);
   });
 
+  it("test_capture_offset_taken_at_first_chunk", () => {
+    // The worklet loaded 300 ms after the origin was read: the clock reads 300 ms at the first chunk's end.
+    const got: CapturedUtterance[] = [];
+    let nowMs = 1300;
+    const p = new CapturePipeline(RATE, { onUtterance: (u) => got.push(u) }, { clock: () => nowMs, sessionStartMs: 1000 });
+    nowMs += (CHUNK / RATE) * 1000; // first chunk arrives when its audio has just ended
+    play(p, 1000, 0.002);
+    play(p, 1000, 0.2);
+    play(p, 1500, 0.002);
+    const u = got[0] as CapturedUtterance;
+    // Audio time 1000 ms sits at session time 300 ms (clock at first chunk start) + 1000.
+    expect(u.speechStartMs).toBeGreaterThan(1290);
+    expect(u.speechStartMs).toBeLessThan(1345);
+  });
+
   it("test_capture_offset_shifts_times", () => {
     const { p, got } = make({ offsetMs: 5000 });
     play(p, 1000, 0.002);
