@@ -12,7 +12,7 @@ Rules you always follow:
 - Do not use exclamation marks.
 - Do not repeat a question that was already asked.
 
-The question you asked the candidate was:
+{{setup}}The question you asked the candidate was:
 {{question}}
 
-{{setup}}{{doNotSay}}
+{{doNotSay}}

@@ -364,3 +364,24 @@ describe("providers", () => {
     expect(headers["x-api-key"]).toBe("test-key");
   });
 });
+
+describe("prompt order", () => {
+  it("test_prompt_keeps_stable_text_first_and_question_last", async () => {
+    const { buildSystemPrompt } = await import("./engine.ts");
+    const mk = (text: string) =>
+      buildSystemPrompt({
+        profile: { persona: "PERSONA" } as never,
+        question: { text, doNotSay: ["SECRET LINE"] } as never,
+        roleContext: "SETUP NOTE",
+      });
+    const a = mk("First question?");
+    const b = mk("Second question?");
+    // Everything before the question is identical, so a server can reuse its cache up to there.
+    const cut = a.indexOf("The question you asked");
+    expect(cut).toBeGreaterThan(0);
+    expect(a.slice(0, cut)).toBe(b.slice(0, cut));
+    expect(a.indexOf("PERSONA")).toBeLessThan(a.indexOf("Rules you always follow"));
+    expect(a.indexOf("SETUP NOTE")).toBeLessThan(a.indexOf("First question?"));
+    expect(a.indexOf("First question?")).toBeLessThan(a.indexOf("SECRET LINE"));
+  });
+});
