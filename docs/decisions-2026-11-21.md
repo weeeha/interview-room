@@ -25,10 +25,26 @@ The owner said to take the recommended decision at each open choice and record i
 16. The scripted stand-in with a real bank reads the bank through a temporary symlink on a second server (port 8961) that is stopped afterwards. Reason: the bank is never copied and nothing from it is committed. Counts only are recorded.
 17. A quoted heading that lists alternate wordings as "A" / "B" keeps the first wording as the question. Reason: the scripted run with a real bank spoke two wordings run together with a stray quote mark, and 89 headings use that form. Headings with other stray quote marks (245 parsed texts) are left for the owner to confirm.
 
+## Fixed 2026-11-21, second pass
+
+- Capture clock offset (commit `6d470b0`): the pipeline reads the clock at the first audio chunk (clock minus chunk length minus session start) instead of before the worklet loads. Test: `test_capture_offset_taken_at_first_chunk`. Small remaining bias: the delay of the first worklet message (a few ms to tens of ms), not corrected.
+- Model first token (commit `ed3bfe7`): `prompt.md` now runs persona, rules, setup notes, then the question, then the do-not-say lines, so everything before the question is the same for every question of a session. Test: `test_prompt_keeps_stable_text_first_and_question_last`. Interviewer wording and leak checks unchanged (249 tests pass).
+- Clock mismatch between interviewer and candidate turn times: nothing to change. The browser already maps its clock onto the server's `startedAt` (`sessionStartOnPerfClock`, tested), so both sides count from one origin. Only real clock skew between two machines would remain, and the app is localhost.
+- Faster first speech unit: not done. Follow-ups are one or two short sentences, so a clause cut saves little and puts a seam into each one. Bank questions and fixed lines are single units already, and fixed lines are cached.
+
+Measurement after the fixes (scripted fake-microphone session `0mwrd0f8racc5`, 8 answers, 16 s gaps, `scripts/e2e-fake-mic.mjs`; machine load average 11 to 15 over the run, under the 20 bar):
+
+| Measure | Before | After | Target |
+|---|---|---|---|
+| Turn-taking gap, median | 3.4 s | 2.70 s (n=7, p95 3.37 s) | 2.5 s, not met |
+| Report time | 37 s | 28.6 s (3 questions, 4 calls, concurrency 3) | 60 s, met |
+| Model first token, median | about 0.55 s | 0.30 s (n=11) | none |
+| First audio from the speech engine, median | 0.7 to 1.2 s | 0.66 s | none |
+
+Runs are single and shorter than the earlier ones (7 gap values against 21), and the capture fix changes the origin of the speech end time, so the gap is not strictly the same quantity as before. No tuning was done after this measurement.
+
 ## Postponed
-- Speed pass, capture clock offset: `startCapture` takes its time origin before the audio worklet has loaded, so end-of-speech times (and the AC-6 gap and AC-7 starts) are off by 50 to 470 ms per run. Needs: take the origin from the audio clock at the first chunk, then re-measure; this changes what the number measures, so the owner decides.
-- Speed pass, faster first TTS unit: Kokoro takes 0.7 to 1.2 s (more under load) for the first sentence. Needs: cut an opening clause as its own unit (touches the sentence splitter and the interviewer prompt, another agent's files), or a faster voice model, or caching bank questions (and rendering the next question while the candidate talks).
-- Speed pass, model first token (about 0.55 s): needs a shorter or reordered prompt so llama-server can reuse more of its cache (persona first, question after), or a smaller or faster model.
+- Speed pass, faster first TTS unit (second pass: a comma cut was judged choppy for 12-word follow-ups and left alone; the options below still stand): Kokoro takes 0.7 to 1.2 s (more under load) for the first sentence. Needs: cut an opening clause as its own unit (touches the sentence splitter and the interviewer prompt, another agent's files), or a faster voice model, or caching bank questions (and rendering the next question while the candidate talks).
 - Speed pass, streaming STT: would remove the remaining wait for whisper when the speaker pauses for less than 550 ms; needs a streaming whisper build.
 - Speed pass, report earlier: start each question's feedback call as soon as that question is done during the session; needs a decision on sharing the model with the live interview.
 - Marble room (tasks 0.2, 0.3, 0.5): generate and export one room. Needs: the owner's Marble account, and the Standard plan if the free plan cannot export. Prompts and the checklist are in `spike/`.
