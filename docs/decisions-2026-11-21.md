@@ -55,7 +55,14 @@ Runs are single and shorter than the earlier ones (7 gap values against 21), and
 - Safari (AC-18): not opened once on any screen. Needs: the owner, or Safari remote automation switched on by him.
 - Headset (task 5.3, and the check of 5.2): Enter VR is written and untested. Needs: a Quest 3.
 - Owner review of the draft (task 1.5 steps 3 and 4): the app was built from the draft without it. Needs: the owner to open `/draft/index.html` and say what changes.
-- Checks dropped to save usage: frame rate on a sample scene in real Chrome, the browser voice fallback (`speechSynthesis`), the ScriptProcessor capture fallback, a rerun of the real-bank stand-in after the alternate-wording fix. Needs: one short executor run, no person.
+- Frame rate on a sample scene in a visible Chrome window: still not measured (the 2026-11-27 run had only a hidden browser pane, whose numbers do not count). Needs: a visible window. The other three dropped checks ran on 2026-11-27, see below.
 - Parser reading to confirm: 245 of 2053 parsed questions still contain a quote character, and any level-3 heading that starts with a number counts as a question. Needs: the owner to look at a few parsed questions from his own banks.
 - Paid interviewer model: the Claude provider is written and never called. Needs: the owner's go and `ALLOW_PAID=1`.
-- Pull requests: the branch is local only. Needs: a push from the personal account.
+
+## Checks run 2026-11-27
+
+All headless or scripted, on the owner's Mac, load average 10 to 15. 249 tests, typecheck and lint pass on `6bb4540`.
+
+- Core loop, headless Chrome with a fake microphone (`node scripts/e2e-fake-mic.mjs --answers 4 --gap-sec 16 --turns 4`): session `0mwzgb4u47f7a` ended normally, 4 candidate turns, AudioWorklet capture, Kokoro voice, gaps 3561, 3220 and 2330 ms (median 3220, n=3, too few to compare with AC-6). Page requests only to `localhost:8940` and `blob:`. Report written, quotes verified 7 of 7 (`scripts/verify-report.ts`), report screen renders.
+- ScriptProcessor capture and browser voice (`--no-worklet`, new option in `scripts/e2e-fake-mic.mjs`, against a second server with `TTS_PROVIDER=browser`): session `0mwzgkbfd44f0` ended normally with 3 candidate turns; capture took the ScriptProcessor path (worklet 0, script processor 1) and `speechSynthesis.speak` ran 10 times. Headless Chrome has 0 voices, so nothing was audible; whether the browser voice sounds acceptable is still unchecked.
+- Real-bank stand-in rerun after the alternate-wording fix (same setup as the 2026-11-21 run: second server on 8961, symlink to the bank file with the most questions, removed afterwards, nothing copied): parser over the owner's banks still gives 105 files and 2053 questions, 245 with a quote character. Session `0mwzgef8fc7ab`: 10 answers, 4 questions asked, 0 repeats, at most 2 follow-ups per question (7 in all), 0 of 12 interviewer lines contain a quote mark, bold marker, emoji or the word Guard (the run before the fix had 2 of 4 questions with run-together wordings). The script stopped after its 10 answers, before the closing line. Server-side gap median 2.3 s (n=10), not the browser gap AC-6 uses.

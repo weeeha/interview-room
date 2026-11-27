@@ -3,7 +3,8 @@
 // the microphone, drives the app over the DevTools protocol, and prints what happened.
 // Needs `npm run dev` running and the model services up. Chrome is muted, so nothing is audible.
 // Usage: node scripts/e2e-fake-mic.mjs [--app http://localhost:8940] [--minutes 5] [--turns 4] [--max-sec 240] [--query 'splat=<url>']
-//   [--answers 4] [--gap-sec 14] [--lead-sec 6]
+//   [--answers 4] [--gap-sec 14] [--lead-sec 6] [--no-worklet]
+// --no-worklet hides AudioWorklet from the page, so capture takes its ScriptProcessor fallback.
 // --answers N makes the fake microphone play N invented answers (cycling through 14 texts), each followed by --gap-sec seconds of
 // silence, after --lead-sec seconds of silence. A short gap makes the next answer overlap the interviewer's reply (barge-in runs),
 // a long one lets the reply finish first. --answers 0 plays only silence (silence-prompt runs; pair it with --max-sec).
@@ -28,6 +29,7 @@ const EXTRA_QUERY = arg("query", "");
 const N_ANSWERS = Number(arg("answers", "4"));
 const GAP_SEC = Number(arg("gap-sec", "14"));
 const LEAD_SEC = Number(arg("lead-sec", "6"));
+const NO_WORKLET = process.argv.includes("--no-worklet");
 const CHROME = "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome";
 const PORT = 9333;
 const root = resolve(import.meta.dirname, "..");
@@ -136,6 +138,7 @@ async function waitFor(fn, what, timeoutMs, stepMs = 300) {
 // Counts which capture path ran and whether the browser voice was used.
 const INIT_SCRIPT = `
 window.__e2e = { worklet: 0, scriptProcessor: 0, speak: 0, voices: -1, errors: [] };
+${NO_WORKLET ? "delete window.AudioWorkletNode; Object.defineProperty(BaseAudioContext.prototype, 'audioWorklet', { get: () => undefined });" : ""}
 const AW = window.AudioWorkletNode;
 if (AW) window.AudioWorkletNode = class extends AW { constructor(...a) { super(...a); window.__e2e.worklet++; } };
 const csp = AudioContext.prototype.createScriptProcessor;
