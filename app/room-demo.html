@@ -1,0 +1,36 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Room demo</title>
+    <style>
+      html, body { margin: 0; height: 100%; background: #111; color: #eee; font: 14px/1.5 system-ui, sans-serif; }
+      #stage { position: fixed; inset: 0; }
+      #hud { position: fixed; left: 12px; top: 12px; padding: 10px 12px; background: rgba(0,0,0,.65); border-radius: 6px;
+             font: 13px/1.6 ui-monospace, Menlo, monospace; max-width: 420px; }
+      #hud button { font: inherit; margin: 6px 6px 0 0; padding: 6px 10px; border-radius: 4px; border: 1px solid #666;
+                    background: #222; color: #eee; cursor: pointer; }
+      #hud button:focus-visible { outline: 2px solid #ffd69a; outline-offset: 2px; }
+      #bar { height: 4px; background: #333; margin-top: 6px; border-radius: 2px; overflow: hidden; }
+      #bar > div { height: 100%; width: 0; background: #ffd69a; }
+      #err { position: fixed; inset: 0; display: none; align-items: center; justify-content: center; text-align: center;
+             padding: 24px; font-size: 20px; background: #111; }
+      #err[data-show="1"] { display: flex; }
+    </style>
+  </head>
+  <body>
+    <div id="stage"></div>
+    <div id="hud">
+      <div id="status">loading...</div>
+      <div id="bar"><div></div></div>
+      <div id="numbers"></div>
+      <div id="audio"></div>
+      <button id="tone" type="button">Play test tone</button>
+      <button id="speak" type="button">Speak a line</button>
+      <button id="skip" type="button">Skip loading</button>
+    </div>
+    <div id="err" role="alert"></div>
+    <script type="module" src="/src/room/demo.ts"></script>
+  </body>
+</html>

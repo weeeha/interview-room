@@ -1,0 +1,11 @@
+{
+  "id": "interview-office",
+  "label": "Interview office",
+  "kind": "office",
+  "splatPath": "media/rooms/interview-office/room.spz",
+  "sourcePrompt": "A quiet small meeting room with a wooden table, two chairs facing each other and a window with soft daylight.",
+  "coordinateConvention": "marble_raw_opencv",
+  "seat": { "position": [0, 1.2, 0], "yawDeg": 0, "lookLimitDeg": 60 },
+  "interviewerAnchors": [{ "position": [0, 1.2, -1.6], "label": "Interviewer across the table" }],
+  "note": "Unmeasured placeholder values. The seat and anchor positions have not been taken from a real splat yet, and the splat file is not in the repo (media/ is git-ignored)."
+}

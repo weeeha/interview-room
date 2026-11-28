@@ -1,0 +1,23 @@
+{
+  "id": "fixture-two-minute",
+  "startedAt": "2026-01-15T10:00:00.000Z",
+  "endedAt": "2026-01-15T10:02:11.000Z",
+  "roomId": "office",
+  "bankId": "sample-bank",
+  "profileId": "neutral",
+  "targetDurationSec": 120,
+  "providers": { "stt": "fake", "llm": "fake", "tts": "fake" },
+  "status": "ended",
+  "turns": [
+    { "index": 0, "role": "interviewer", "kind": "opening", "text": "Hello, thanks for coming in. We will go through three questions.", "startMs": 0, "endMs": 6000 },
+    { "index": 1, "role": "interviewer", "kind": "question", "questionId": "q-migration", "text": "Tell me about a project you delivered under a tight deadline.", "startMs": 6000, "endMs": 12000 },
+    { "index": 2, "role": "candidate", "kind": "answer", "questionId": "q-migration", "text": "Um, so the project was a billing migration for a small team. Basically we had two months to move customers off an old system. I, uh, split the work into three stages and wrote a checklist for each one. We moved ten percent of accounts first, then half, then everyone. We finished a week early and support tickets stayed flat.", "startMs": 14000, "endMs": 40000 },
+    { "index": 3, "role": "interviewer", "kind": "followup", "questionId": "q-migration", "text": "What was the hardest part?", "startMs": 41000, "endMs": 46000 },
+    { "index": 4, "role": "candidate", "kind": "answer", "questionId": "q-migration", "text": "The hardest part was, you know, the data cleanup. Many records were duplicated, so I wrote a script and checked a sample by hand. It was, like, slow work but it caught errors early. Actually, the sample check found about forty bad rows.", "startMs": 49500, "endMs": 66500 },
+    { "index": 5, "role": "interviewer", "kind": "question", "questionId": "q-strength", "text": "What would you say your biggest strength is, and also", "startMs": 67000, "endMs": 74000, "interrupted": true },
+    { "index": 6, "role": "candidate", "kind": "answer", "questionId": "q-strength", "text": "Er, I would say my biggest strength is planning. I like to write things down before I start. I mean, with the migration, the checklist sort of kept everyone calm. Um, my weakness is that I take on too much, so I now ask for help earlier and I track my hours each week.", "startMs": 74500, "endMs": 98500 },
+    { "index": 7, "role": "interviewer", "kind": "question", "questionId": "q-growth", "text": "Where do you want to grow next?", "startMs": 100000, "endMs": 107000 },
+    { "index": 8, "role": "candidate", "kind": "answer", "questionId": "q-growth", "text": "I want to grow into leading a team. I am kind of new to managing people, so I would start by asking questions. Basically, I would learn how the team works first and then suggest small changes.", "startMs": 109000, "endMs": 125000 },
+    { "index": 9, "role": "interviewer", "kind": "closing", "text": "Thank you, that is all the time we have.", "startMs": 126000, "endMs": 131000 }
+  ]
+}

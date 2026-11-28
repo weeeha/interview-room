@@ -1,0 +1,64 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Flow map - Interview room draft</title>
+<link rel="stylesheet" href="draft.css">
+</head>
+<body data-state="default" data-states="default">
+<div class="page">
+  <header class="site-header">
+    <span class="wordmark">Interview room</span>
+    <nav aria-label="Draft screens">
+      <a href="index.html" aria-current="page">Flow map</a>
+      <a href="setup.html">Setup</a>
+      <a href="room.html">Room</a>
+      <a href="report.html">Report</a>
+    </nav>
+  </header>
+  <main>
+    <h1>Draft flow map</h1>
+    <p class="lead">Three screens, 19 states. Setup leads to the room, the room leads to the report. All content is invented. The draft is static: nothing is saved or sent.</p>
+    <section aria-labelledby="setup">
+      <h2 id="setup">Setup (5 states)</h2>
+      <p class="hint">Choose a room, bank, style and length. Past sessions below.</p>
+      <ul class="flow">
+      <li><a href="setup.html"><span class="flow-name">Default</span><span class="flow-what">Last-used choices, two past sessions.</span></a></li>
+      <li><a href="setup.html?state=empty"><span class="flow-name">Empty</span><span class="flow-what">No banks found, no sessions, start disabled.</span></a></li>
+      <li><a href="setup.html?state=loading"><span class="flow-name">Loading</span><span class="flow-what">Banks loading, session rows pending.</span></a></li>
+      <li><a href="setup.html?state=error"><span class="flow-name">Error</span><span class="flow-what">Server unreachable, retry.</span></a></li>
+      <li><a href="setup.html?state=long"><span class="flow-name">Long content</span><span class="flow-what">Long role context scrolls inside its box.</span></a></li>
+      </ul>
+    </section>
+    <section aria-labelledby="room">
+      <h2 id="room">Room (9 states)</h2>
+      <p class="hint">Dark by default. Add ?bg=light or ?bg=dark to check captions over both backgrounds.</p>
+      <ul class="flow">
+      <li><a href="room.html"><span class="flow-name">Default</span><span class="flow-what">First question shown, waiting for the candidate.</span></a></li>
+      <li><a href="room.html?state=interviewer-speaking"><span class="flow-name">Interviewer speaking</span><span class="flow-what">Marker active, captions follow the voice.</span></a></li>
+      <li><a href="room.html?state=candidate-speaking"><span class="flow-name">Candidate speaking</span><span class="flow-what">Live words, mic meter high.</span></a></li>
+      <li><a href="room.html?state=silence-prompt"><span class="flow-name">Silence prompt</span><span class="flow-what">Interviewer asks if you want the question repeated.</span></a></li>
+      <li><a href="room.html?state=room-loading"><span class="flow-name">Room loading</span><span class="flow-what">Progress with a skip room button.</span></a></li>
+      <li><a href="room.html?state=room-unavailable"><span class="flow-name">Room unavailable</span><span class="flow-what">Plain backdrop with a notice.</span></a></li>
+      <li><a href="room.html?state=mic-denied"><span class="flow-name">Mic denied</span><span class="flow-what">Blocked microphone, retry.</span></a></li>
+      <li><a href="room.html?state=provider-error"><span class="flow-name">Provider error</span><span class="flow-what">Voice failed, retry.</span></a></li>
+      <li><a href="room.html?state=ending"><span class="flow-name">Ending</span><span class="flow-what">Saving, then open the report.</span></a></li>
+      </ul>
+    </section>
+    <section aria-labelledby="report">
+      <h2 id="report">Report (5 states)</h2>
+      <p class="hint">Written feedback after the session. No prediction of a hiring outcome.</p>
+      <ul class="flow">
+      <li><a href="report.html"><span class="flow-name">Default</span><span class="flow-what">Summary, delivery, two questions, drill.</span></a></li>
+      <li><a href="report.html?state=generating"><span class="flow-name">Generating</span><span class="flow-what">Stage label while the report is written.</span></a></li>
+      <li><a href="report.html?state=error"><span class="flow-name">Error</span><span class="flow-what">Transcript readable, retry button.</span></a></li>
+      <li><a href="report.html?state=empty"><span class="flow-name">Empty</span><span class="flow-what">No answers, nothing to review.</span></a></li>
+      <li><a href="report.html?state=long"><span class="flow-name">Long content</span><span class="flow-what">Long answers collapse with show more.</span></a></li>
+      </ul>
+    </section>
+  </main>
+</div>
+<script src="draft.js"></script>
+</body>
+</html>

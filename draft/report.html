@@ -1,0 +1,179 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Session report - Interview room</title>
+<link rel="stylesheet" href="draft.css">
+</head>
+<body data-state="default" data-states="default generating error empty long">
+<div class="page">
+
+  <header class="site-header">
+    <span class="wordmark">Interview room</span>
+    <nav aria-label="Draft screens">
+      <a href="index.html">Flow map</a>
+      <a href="setup.html">Setup</a>
+      <a href="room.html">Room</a>
+      <a href="report.html" aria-current="page">Report</a>
+    </nav>
+  </header>
+
+  <main>
+    <h1>Session report</h1>
+    <p class="meta">Product design, general. Nov 12, 10 minutes. Neutral interviewer. Sample content for the draft.</p>
+
+    <div class="banner spaced" data-only="generating" role="status">
+      <p class="banner-title">Writing your report. Stage 2 of 3: reading your answers.</p>
+      <p>This usually takes under a minute. You can leave this page open.</p>
+      <p><progress value="2" max="3" aria-label="Report progress, stage 2 of 3">2 of 3</progress></p>
+    </div>
+
+    <div class="banner error spaced" data-only="error" role="alert">
+      <p class="banner-title">The feedback could not be written.</p>
+      <p>The language model on this computer did not answer. Your transcript is saved and readable below. Retry to write the report again.</p>
+      <button type="button" class="btn btn-primary" data-retry>Retry report</button>
+    </div>
+
+    <div class="spaced-block" data-only="empty">
+      <h2>Nothing to review</h2>
+      <p>The session ended before you answered a question, so there is no feedback to write. The transcript has only the interviewer's opening.</p>
+      <p class="gap-top"><a class="btn btn-primary" href="setup.html">Set up a new session</a></p>
+    </div>
+
+    <section data-only="error" aria-labelledby="transcript">
+      <h2 id="transcript">Transcript</h2>
+      <ol class="transcript">
+        <li><span class="who">Interviewer, turn 1</span><p>First question: tell me about a project you led from start to finish.</p><div><button type="button" class="btn btn-small">Play turn 1</button></div></li>
+        <li><span class="who">You, turn 2</span><p>Last spring I led a redesign of the checkout flow for a small ticketing tool. We started by watching ten people try to buy a ticket, and most of them stalled at the seat map.</p><div><button type="button" class="btn btn-small">Play turn 2</button></div></li>
+        <li><span class="who">Interviewer, turn 3</span><p>You said most people stalled at the seat map. What did you change there first?</p><div><button type="button" class="btn btn-small">Play turn 3</button></div></li>
+        <li><span class="who">You, turn 4</span><p>We made the map smaller and put a list of sections next to it.</p><div><button type="button" class="btn btn-small">Play turn 4</button></div></li>
+      </ol>
+    </section>
+
+    <div data-only="default long">
+      <section aria-labelledby="summary">
+        <h2 id="summary">Summary</h2>
+        <p data-not="long">You gave clear examples for both questions. Your answer about the checkout redesign opened with the outcome and named a test with ten people. Your answer about the disagreement stayed general: it said how the team felt but not what you proposed or what changed. Two answers ran past two minutes, and the longest pause came after the follow-up on the second question.</p>
+        <p data-only="long">You gave clear examples for both questions. Your answer about the checkout redesign opened with the outcome and named a test with ten people, then moved to a payment provider story that took most of the remaining time. Your answer about the disagreement stayed general: it said how the team felt but not what you proposed or what changed. Two answers ran past two minutes, and the longest pause came after the follow-up on the second question. The practice drills below target the second answer first, then the length of the first.</p>
+        <p class="note gap-top">This is practice feedback on one session. It does not predict a hiring decision.</p>
+      </section>
+
+      <section aria-labelledby="delivery">
+        <h2 id="delivery">Delivery</h2>
+        <dl class="facts">
+          <div><dt>Speaking pace</dt><dd>146 words per minute</dd></div>
+          <div><dt>Filler words</dt><dd>17 times</dd></div>
+          <div><dt>Median answer length</dt><dd>74 seconds</dd></div>
+          <div><dt>Longest pause</dt><dd>6.2 seconds</dd></div>
+          <div><dt>Interrupted the interviewer</dt><dd>2 times</dd></div>
+        </dl>
+      </section>
+
+      <section aria-labelledby="questions">
+        <h2 id="questions">Questions</h2>
+
+        <article class="question" aria-labelledby="q1">
+          <h3 id="q1">Tell me about a project you led from start to finish.</h3>
+          <div>
+            <h4>What held up</h4>
+            <ul class="findings">
+        <li class="finding">
+          <p>Opened with the outcome, then told the story.</p>
+          <blockquote class="quote"><p>Last spring I led a redesign of the checkout flow for a small ticketing tool.</p></blockquote>
+          <div class="finding-foot"><span>Turn 2, You</span><button type="button" class="btn btn-small">Play turn 2<span class="visually-hidden"> audio</span></button></div>
+        </li>
+        <li class="finding">
+          <p>Named a concrete test with a number of people.</p>
+          <blockquote class="quote" data-not="long"><p>We started by watching ten people try to buy a ticket.</p></blockquote>
+          <blockquote class="quote clampable" data-only="long"><p>Last spring I led a redesign of the checkout flow for a small ticketing tool. We started by watching ten people try to buy a ticket, and most of them stalled at the seat map, so I proposed a smaller map with a list view next to it. Then I worked with the two engineers on a plan, and we also had to deal with the payment provider, who changed an API in the middle of the project, which was a whole other story, because we had planned the release around it and then had to move it twice, and I spent a lot of that month on calls explaining the schedule to people who had not been part of the original plan.</p></blockquote>
+          <div class="finding-foot"><span>Turn 2, You</span><button type="button" class="btn btn-small">Play turn 2<span class="visually-hidden"> audio</span></button></div>
+        </li>
+            </ul>
+          </div>
+          <div>
+            <h4>What was vague</h4>
+            <ul class="findings">
+        <li class="finding">
+          <p>No result is stated. The answer ends on the plan.</p>
+          <blockquote class="quote"><p>Then I worked with the two engineers on a plan, and we also had to deal with the payment provider.</p></blockquote>
+          <div class="finding-foot"><span>Turn 2, You</span><button type="button" class="btn btn-small">Play turn 2<span class="visually-hidden"> audio</span></button></div>
+        </li>
+            </ul>
+          </div>
+          <div>
+            <h4>Scores</h4>
+            <ul class="rubric">
+        <li><span class="r-name">Structure</span><span class="r-score">4 of 4</span><span class="r-reason">Context, action and plan came in order.</span></li>
+        <li><span class="r-name">Specificity</span><span class="r-score">3 of 4</span><span class="r-reason">Named the seat map and the test, but no result figure.</span></li>
+        <li><span class="r-name">Relevance</span><span class="r-score">4 of 4</span><span class="r-reason">Stayed on a project you led.</span></li>
+        <li><span class="r-name">Concision</span><span class="r-score">2 of 4</span><span class="r-reason">Ran 2 minutes 40 seconds and added a side story about the payment provider.</span></li>
+            </ul>
+          </div>
+        </article>
+
+        <article class="question" aria-labelledby="q2">
+          <h3 id="q2">Describe a time you disagreed with a stakeholder.</h3>
+          <div>
+            <h4>What held up</h4>
+            <ul class="findings">
+        <li class="finding">
+          <p>Picked a real example without being asked twice.</p>
+          <blockquote class="quote"><p>We disagreed about the order of things, and I mostly tried to keep everyone calm.</p></blockquote>
+          <div class="finding-foot"><span>Turn 6, You</span><button type="button" class="btn btn-small">Play turn 6<span class="visually-hidden"> audio</span></button></div>
+        </li>
+            </ul>
+          </div>
+          <div>
+            <h4>What was vague</h4>
+            <ul class="findings">
+        <li class="finding">
+          <p>Says how it felt, not what you proposed or what changed.</p>
+          <blockquote class="quote" data-not="long"><p>We found something that worked for most people and I think the stakeholder was fine with it.</p></blockquote>
+          <blockquote class="quote clampable" data-only="long"><p>Um, I think what I did was, well, we disagreed about the order of things, and I mostly tried to keep everyone calm and get the project moving again because it was getting stressful for the team, and in the end we found something that worked for most people and I think the stakeholder was fine with it, though I am not sure they would say the same today.</p></blockquote>
+          <div class="finding-foot"><span>Turn 6, You</span><button type="button" class="btn btn-small">Play turn 6<span class="visually-hidden"> audio</span></button></div>
+        </li>
+            </ul>
+          </div>
+          <div>
+            <h4>Scores</h4>
+            <ul class="rubric">
+        <li><span class="r-name">Structure</span><span class="r-score">2 of 4</span><span class="r-reason">No clear order between the disagreement and the outcome.</span></li>
+        <li><span class="r-name">Specificity</span><span class="r-score">1 of 4</span><span class="r-reason">No names of options, dates or numbers.</span></li>
+        <li><span class="r-name">Relevance</span><span class="r-score">3 of 4</span><span class="r-reason">A disagreement, but the stakeholder's view is missing.</span></li>
+        <li><span class="r-name">Concision</span><span class="r-score">3 of 4</span><span class="r-reason">Short, but short because details were left out.</span></li>
+            </ul>
+          </div>
+          <div>
+            <h4>Suggested rewrite</h4>
+            <blockquote class="quote clampable"><p>Our product manager wanted to ship the seat map before the mobile layout was ready. I showed three recordings where people on phones missed the seats and proposed a two-week mobile pass. We agreed on [what you agreed] and [the result, with a number]. Fill the brackets with what really happened.</p></blockquote>
+          </div>
+        </article>
+      </section>
+
+      <section aria-labelledby="drill">
+        <h2 id="drill">Next drill</h2>
+        <ol class="drill">
+          <li>Answer the disagreement question again in 90 seconds. End with what changed.</li>
+          <li>Say one number in every project answer.</li>
+          <li>Pause for two seconds before your first word instead of starting with a filler.</li>
+        </ol>
+      </section>
+    </div>
+  </main>
+
+  <footer class="draft-states">
+    <p>Draft states for this screen</p>
+    <ul>
+      <li><a href="report.html" data-state-link="default">Default</a></li>
+      <li><a href="report.html?state=generating" data-state-link="generating">Generating</a></li>
+      <li><a href="report.html?state=error" data-state-link="error">Error</a></li>
+      <li><a href="report.html?state=empty" data-state-link="empty">Empty</a></li>
+      <li><a href="report.html?state=long" data-state-link="long">Long content</a></li>
+    </ul>
+  </footer>
+
+</div>
+<script src="draft.js"></script>
+</body>
+</html>

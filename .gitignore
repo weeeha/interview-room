@@ -1,0 +1,6 @@
+media/
+sessions/
+.env
+node_modules/
+dist/
+.DS_Store

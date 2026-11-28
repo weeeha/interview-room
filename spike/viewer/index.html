@@ -1,0 +1,120 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Room viewer spike</title>
+<style>
+  html, body { margin: 0; height: 100%; background: #111; overflow: hidden; }
+  canvas { display: block; touch-action: none; cursor: grab; }
+  #hud { position: fixed; left: 12px; top: 12px; padding: 8px 10px; background: rgba(0,0,0,.6);
+         color: #eee; font: 13px/1.5 ui-monospace, Menlo, monospace; border-radius: 6px; }
+  #msg { position: fixed; inset: 0; display: none; align-items: center; justify-content: center;
+         color: #eee; font: 20px system-ui, sans-serif; text-align: center; padding: 24px; }
+</style>
+<script type="importmap">
+{ "imports": {
+  "three": "https://cdn.jsdelivr.net/npm/three@0.180.0/build/three.module.js",
+  "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.180.0/examples/jsm/",
+  "@sparkjsdev/spark": "https://cdn.jsdelivr.net/npm/@sparkjsdev/spark@2.4.0/dist/spark.module.js"
+} }
+</script>
+</head>
+<body>
+<div id="hud">loading...</div>
+<div id="msg"></div>
+<script type="module">
+import * as THREE from "three";
+import { SparkRenderer, SplatMesh } from "@sparkjsdev/spark";
+
+const t0 = performance.now();
+const q = new URLSearchParams(location.search);
+const splatUrl = q.get("splat") || "/media/rooms/interview-office/room.spz";
+const flip = q.get("flip") !== "0";
+const scale = parseFloat(q.get("scale") || "1");
+const ground = parseFloat(q.get("ground") || "0");
+const hud = document.getElementById("hud");
+const msg = document.getElementById("msg");
+
+function fail(text) {
+  msg.textContent = text; msg.style.display = "flex"; hud.textContent = "no room";
+  console.error(text);
+}
+
+// Plain message instead of a blank canvas when the file is missing.
+try {
+  const r = await fetch(splatUrl, { method: "HEAD" });
+  if (!r.ok) { fail("No room file at " + splatUrl); throw new Error("missing"); }
+} catch (e) {
+  if (e.message !== "missing") fail("No room file at " + splatUrl);
+  throw e;
+}
+
+const renderer = new THREE.WebGLRenderer({ antialias: false });
+renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
+renderer.setSize(innerWidth, innerHeight);
+document.body.appendChild(renderer.domElement);
+
+const scene = new THREE.Scene();
+const camera = new THREE.PerspectiveCamera(60, innerWidth / innerHeight, 0.05, 200);
+camera.position.set(0, 1.2, 0); // eye height 1.2 m, never moves
+camera.rotation.order = "YXZ";
+
+scene.add(new SparkRenderer({ renderer }));
+
+const splat = new SplatMesh({ url: splatUrl });
+if (flip) splat.quaternion.setFromAxisAngle(new THREE.Vector3(1, 0, 0), Math.PI);
+splat.scale.setScalar(scale);
+splat.position.y -= ground;
+// Test only: move a small sample object in front of the seat, e.g. ?offset=0,1.2,-2
+const off = (q.get("offset") || "").split(",").map(Number);
+if (off.length === 3 && off.every(Number.isFinite)) splat.position.add(new THREE.Vector3(...off));
+scene.add(splat);
+
+// Pointer drag: yaw +-60 deg, pitch +-30 deg.
+const rad = (d) => d * Math.PI / 180;
+let yaw = 0, pitch = 0, drag = null;
+const el = renderer.domElement;
+el.addEventListener("pointerdown", (e) => { drag = { x: e.clientX, y: e.clientY }; el.setPointerCapture(e.pointerId); el.style.cursor = "grabbing"; });
+el.addEventListener("pointerup", () => { drag = null; el.style.cursor = "grab"; });
+el.addEventListener("pointermove", (e) => {
+  if (!drag) return;
+  yaw -= (e.clientX - drag.x) * 0.004;
+  pitch -= (e.clientY - drag.y) * 0.004;
+  drag.x = e.clientX; drag.y = e.clientY;
+  yaw = Math.max(-rad(60), Math.min(rad(60), yaw));
+  pitch = Math.max(-rad(30), Math.min(rad(30), pitch));
+});
+addEventListener("resize", () => {
+  renderer.setSize(innerWidth, innerHeight);
+  camera.aspect = innerWidth / innerHeight; camera.updateProjectionMatrix();
+});
+
+let loadSec = null, frames = 0, windowStart = null, avgFps = null, ready = false;
+splat.initialized.then(() => { ready = true; }).catch((e) => fail("Could not load " + splatUrl + ": " + e));
+
+function render(now) {
+  camera.rotation.set(pitch, yaw, 0);
+  renderer.render(scene, camera);
+  if (ready) {
+    if (loadSec === null) {
+      loadSec = (performance.now() - t0) / 1000;
+      windowStart = performance.now();
+      console.log("load-to-first-frame seconds: " + loadSec.toFixed(2));
+    }
+    frames++;
+    const elapsed = (performance.now() - windowStart) / 1000;
+    if (avgFps === null && elapsed >= 10) {
+      avgFps = frames / elapsed;
+      console.log("average fps over 10 s: " + avgFps.toFixed(1));
+    }
+    const live = avgFps === null ? (frames / Math.max(elapsed, 0.001)) : avgFps;
+    hud.textContent = "load " + loadSec.toFixed(2) + " s | fps " + live.toFixed(1) +
+      (avgFps === null ? " (measuring, " + elapsed.toFixed(0) + "/10 s)" : " (10 s avg)");
+    window.__viewer = { loadSec, avgFps };
+  }
+}
+renderer.setAnimationLoop(render);
+</script>
+</body>
+</html>

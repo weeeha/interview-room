@@ -1,0 +1,36 @@
+/* Report screen additions. Tokens and the shared report classes come from base.css. */
+
+.link-button {
+  background: none;
+  border: 0;
+  padding: var(--space-2) 0;
+  min-height: 44px;
+  font: inherit;
+  font-size: var(--text-sm);
+  font-weight: 600;
+  color: var(--accent);
+  text-decoration: underline;
+  text-underline-offset: 3px;
+  cursor: pointer;
+}
+.quote-wrap { max-width: var(--measure); }
+.quote-wrap > .link-button { display: block; padding-top: var(--space-1); min-height: 36px; }
+.spaced-top { margin-top: var(--space-2); }
+.gap-top-sm { margin-top: var(--space-2); margin-bottom: var(--space-3); }
+.plain-list { margin: var(--space-2) 0 0; padding-left: var(--space-4); }
+
+.warn { color: var(--text); font-size: var(--text-sm); border-top: 1px solid var(--signal); padding-top: var(--space-2); max-width: var(--measure); }
+.warn strong { color: var(--signal); }
+
+.play[aria-pressed="true"] { background: var(--accent-tint); border-color: var(--accent); color: var(--text); }
+.play-reason { color: var(--text-2); font-size: var(--text-sm); }
+
+.question:focus { outline: none; }
+.question:focus-visible { outline: 2px solid var(--focus); outline-offset: 8px; }
+.question { overflow-wrap: anywhere; }
+.transcript p { overflow-wrap: anywhere; }
+
+/* The page is one column at every width; the draft's 720px column is kept. */
+@media (max-width: 559px) {
+  .finding-foot { align-items: flex-start; }
+}
