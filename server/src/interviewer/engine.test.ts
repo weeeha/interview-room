@@ -89,6 +89,19 @@ describe("interviewer engine", () => {
     expect(new Set(texts).size).toBe(texts.length);
   });
 
+  it("test_upcoming_question_is_the_one_asked_next", async () => {
+    const h = harness({ bank: bank(8) });
+    expect(h.engine.upcomingQuestion()).toBe(q(1).text);
+    await h.send({ kind: "start" });
+    for (let i = 0; i < 40 && !h.engine.isClosed(); i++) {
+      const expected = h.engine.upcomingQuestion();
+      const out = await h.send({ kind: "answer", text: "I led the migration and it took three weeks." }, 40);
+      const asked = out.find((s) => s.kind === "question");
+      if (asked) expect(asked.text).toBe(expected);
+    }
+    expect(h.engine.upcomingQuestion()).toBeUndefined();
+  });
+
   it("test_max_two_followups", async () => {
     const h = harness({ bank: bank(8), target: 3000 });
     await runSession(h, 5);

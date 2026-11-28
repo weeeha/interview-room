@@ -7,4 +7,6 @@ export type TTSResult = { wav: Buffer; ms: number };
 export interface TTSProvider {
   name: string;
   synthesize(text: string, voiceId: string): Promise<TTSResult | null>;
+  /** Render a line ahead of time into the cache, so a later synthesize() of the same text is a cache read. */
+  prepare?(text: string, voiceId: string): Promise<void>;
 }

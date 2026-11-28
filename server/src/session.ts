@@ -592,6 +592,11 @@ export function createSessionService(opts: SessionServiceOptions) {
         closing: engine.isClosed(),
         latency: { sttMs: sttMs ?? 0, llmFirstTokenMs: entry.timing.first ?? 0 },
       });
+      // Render the next bank question while the candidate answers, so moving on costs a cache read.
+      const upcoming = engine.upcomingQuestion();
+      if (upcoming && providers.tts.prepare) {
+        providers.tts.prepare(upcoming, profile.voiceId).catch((e) => log.warn(`prepare next question failed: ${errMsg(e)}`));
+      }
     } catch (e) {
       emit({ type: "error", stage: "llm", message: errMsg(e) });
       try {

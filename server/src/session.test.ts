@@ -418,6 +418,41 @@ describe("turn stream", () => {
     expect((await getSession(app, s.id)).turns).toHaveLength(3);
   });
 
+  it("test_next_question_audio_is_prepared_after_each_turn", async () => {
+    const prepared: string[] = [];
+    const base = createFakeTTS();
+    const tts = {
+      name: "ahead",
+      synthesize: (text: string, voice: string) => base.synthesize(text, voice),
+      async prepare(text: string) {
+        prepared.push(text);
+      },
+    };
+    const { app } = setup({ tts, stt: createFakeSTT(["An answer.", "Another answer."]) });
+    const s = await create(app);
+    const first = await turn(app, s.id, { kind: "start" });
+    const askedFirst = first.find((l) => l.type === "sentence" && l.kind === "question");
+    expect(prepared).toHaveLength(1);
+    expect(prepared[0]).not.toBe(askedFirst && "text" in askedFirst ? askedFirst.text : undefined);
+    const lines = await turn(app, s.id, { kind: "answer" }, true);
+    const asked = lines.filter((l) => l.type === "sentence" && l.kind === "question").map((l) => ("text" in l ? l.text : ""));
+    for (const text of asked) expect(prepared).toContain(text);
+    expect(prepared.length).toBeGreaterThanOrEqual(2);
+  });
+
+  it("test_prepare_failure_does_not_break_the_turn", async () => {
+    const base = createFakeTTS();
+    const tts = {
+      name: "ahead-broken",
+      synthesize: (text: string, voice: string) => base.synthesize(text, voice),
+      prepare: () => Promise.reject(new Error("kokoro busy")),
+    };
+    const { app } = setup({ tts });
+    const s = await create(app);
+    const lines = await turn(app, s.id, { kind: "start" });
+    expect(lines[lines.length - 1]).toMatchObject({ type: "done", turnIndex: 0 });
+  });
+
   it("a tts failure writes an error line and rolls the turn back so a retry is clean", async () => {
     let fail = true;
     const tts = {

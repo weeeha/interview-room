@@ -38,6 +38,27 @@ describe("local tts", () => {
     }
   });
 
+  it("test_prepare_renders_once_into_the_cache", async () => {
+    const dir = await mkdtemp(join(tmpdir(), "tts-local-"));
+    try {
+      const cache = createTtsCache(dir);
+      const f = fakeFetch(sineWav(300));
+      const tts = createLocalTTS({ url: "http://x:1", cache, fetchImpl: f.impl });
+      await Promise.all([tts.prepare!("Next question.", "af_heart"), tts.prepare!("Next question.", "af_heart")]);
+      await tts.prepare!("Next question.", "af_heart");
+      expect(f.calls).toHaveLength(1);
+      const out = await tts.synthesize("Next question.", "af_heart");
+      expect(f.calls).toHaveLength(1);
+      expect(out?.ms).toBe(300);
+    } finally {
+      await rm(dir, { recursive: true, force: true });
+    }
+  });
+
+  it("test_prepare_without_cache_is_absent", () => {
+    expect(createLocalTTS({ url: "http://x:1", fetchImpl: fakeFetch(sineWav(1)).impl }).prepare).toBeUndefined();
+  });
+
   it("test_local_throws_on_server_error", async () => {
     const tts = createLocalTTS({ url: "http://x:1", fetchImpl: fakeFetch(Buffer.alloc(0), 500).impl });
     await expect(tts.synthesize("Hi.", "af_heart")).rejects.toThrow(/500/);

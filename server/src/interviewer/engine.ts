@@ -29,6 +29,8 @@ export type Engine = {
   state(): object;
   restore(state: object): void;
   isClosed(): boolean;
+  /** Text of the bank question that would be asked next, so its audio can be rendered ahead. */
+  upcomingQuestion(): string | undefined;
 };
 
 /** The closing line is delivered at a turn boundary once this much of the target is left. */
@@ -328,6 +330,7 @@ export function createEngine(opts: EngineOptions): Engine {
 
   return {
     next: (event, o) => run(event, o?.signal),
+    upcomingQuestion: () => (st.closed ? undefined : pickNext()?.text),
     commit(spokenText, interrupted) {
       const text = oneLine(spokenText);
       const kept = st.transcript.slice(0, st.lastTurnStart);
