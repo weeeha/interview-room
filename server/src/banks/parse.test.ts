@@ -112,4 +112,24 @@ describe("banks route", () => {
     expect(bank.questions.map((q) => q.text)).toEqual(["Where do you live?", "Tell me about yourself."]);
     expect(bank.questions.every((q) => !q.text.includes('"'))).toBe(true);
   });
+
+  it("test_quoted_heading_drops_closing_quote_before_emoji_and_keeps_note_as_hint", () => {
+    const md = [
+      '### 1. "How does a change reach consumers? Show me one." ⚠️',
+      "**Say:** Answer.",
+      '### 2. "Consult on design work for engineers" (example: a clearer assessment page).',
+      "**Follow-up:** Who asked for it?",
+      '### 3. "Tell me about the "north star" project."',
+      "### 4. Plain heading with no quotes",
+    ].join("\n");
+    const qs = parseBank(md, { id: "b", sourcePath: "b.md" }).questions;
+    expect(qs.map((q) => q.text)).toEqual([
+      "How does a change reach consumers? Show me one.",
+      "Consult on design work for engineers",
+      'Tell me about the "north star" project.',
+      "Plain heading with no quotes",
+    ]);
+    expect(qs[1]!.followUpHints).toEqual(["example: a clearer assessment page", "Who asked for it?"]);
+    expect(qs[0]!.followUpHints).toEqual([]);
+  });
 });

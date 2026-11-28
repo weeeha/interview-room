@@ -123,16 +123,35 @@ function buildQuestion(
   return question;
 }
 
+/**
+ * A quoted heading is the spoken question. Alternate wordings ("A" / "B") keep the first one.
+ * The question runs to the last closing quote, so quotes inside it stay. Text after that quote
+ * (a note such as "(example: ...)") is not spoken; it becomes a follow-up hint. Emoji are ignored.
+ */
+export function splitQuotedHeading(raw: string): { text: string; note: string } {
+  const text = raw.replace(EMOJI, "").trim();
+  if (!text.startsWith('"')) return { text, note: "" };
+  const first = text.slice(1).split(/"\s*\/\s*"/)[0]!;
+  const end = first.lastIndexOf('"');
+  if (end < 0) return { text: first, note: "" };
+  const note = clean(first.slice(end + 1)).replace(/^[\s(\-–—:,.]+|[\s).,;:]+$/g, "");
+  return { text: first.slice(0, end), note };
+}
+
 export function parseBank(markdown: string, opts: { id: string; sourcePath: string }): QuestionBank {
   const lines = markdown.replace(/\r\n?/g, "\n").split("\n");
   const questions: Question[] = [];
   const usedIds = new Set<string>();
   let title = "";
   let section = "";
-  let current: { number: string; text: string; body: string[]; tags: string[] } | null = null;
+  let current: { number: string; text: string; note: string; body: string[]; tags: string[] } | null = null;
 
   const flush = () => {
-    if (current) questions.push(buildQuestion(opts.id, current.number, current.text, current.body, current.tags, usedIds));
+    if (current) {
+      const qn = buildQuestion(opts.id, current.number, current.text, current.body, current.tags, usedIds);
+      if (current.note) qn.followUpHints.unshift(current.note);
+      questions.push(qn);
+    }
     current = null;
   };
 
@@ -141,10 +160,8 @@ export function parseBank(markdown: string, opts: { id: string; sourcePath: stri
     if (h) {
       flush();
       const number = h[1]!.replace(".", "-");
-      let text = h[2]!;
-      // A quoted heading may list alternate wordings as "A" / "B": the first one is the question.
-      if (text.startsWith('"')) text = text.slice(1).split(/"\s*\/\s*"/)[0]!.replace(/"\s*$/, "");
-      current = { number, text, body: [], tags: section ? [section] : [] };
+      const { text, note } = splitQuotedHeading(h[2]!);
+      current = { number, text, note, body: [], tags: section ? [section] : [] };
       continue;
     }
     const h1 = /^#\s+(.+)$/.exec(line);
